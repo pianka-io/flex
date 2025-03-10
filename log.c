@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <time.h>
 
-void log(const char *level, const char *format, ...) {
+void write_log(const char *level, const char *format, ...) {
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
 

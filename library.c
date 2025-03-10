@@ -1,8 +1,10 @@
 #include <windows.h>
 #include <stdio.h>
+#include <math.h>
 
+#include "api.h"
 #include "log.h"
-#include "diablo.h"
+#include "diablo/diablo.h"
 
 void print_art() {
     printf("________/\\\\\\\\\\__/\\\\\\\\\\\\_________________________________        \n");
@@ -28,11 +30,20 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     freopen("CONIN$", "r", stdin);
 
     print_art();
-    log("INF","version 0.1 (Warnet 2025)");
-    log("INF","screen dimensions (%i, %i)", *screen_width, *screen_height);
+    write_log("INF","version 0.1 (Warnet 2025)");
+    write_log("INF","screen dimensions %ix%i", *screen_width, *screen_height);
+    write_log("INF","character %s", GetPlayerUnit()->pPlayerData->szName);
+    load_plugins();
+
+    Sleep(1000);
 
     while (1) {
-        Sleep(1000);
+        for (int i = 0; i < MAX_PLUGINS; i++) {
+            if (plugins[i] && plugins[i]->tick) {
+                plugins[i]->tick();
+            }
+        }
+        Sleep(16);
     }
 }
 
@@ -43,7 +54,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
             CreateThread(NULL, 0, ConsoleThread, NULL, 0, NULL);
             break;
         case DLL_PROCESS_DETACH:
-            log("INF", "flexlib.dll detached from process");
+            write_log("INF", "flexlib.dll detached from process");
             FreeConsole();
             break;
         default:

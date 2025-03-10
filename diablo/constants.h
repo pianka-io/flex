@@ -1,0 +1,13 @@
+#ifndef FLEXLIB_CONSTANTS_H
+#define FLEXLIB_CONSTANTS_H
+
+enum {
+    UNIT_PLAYER,
+    UNIT_MONSTER,
+    UNIT_OBJECT,
+    UNIT_MISSILE,
+    UNIT_ITEM,
+    UNIT_TILE,
+};
+
+#endif
