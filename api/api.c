@@ -5,17 +5,10 @@
 #else
 #include <python.h>
 #endif
+#include <structmember.h>
 #include "../diablo/diablo.h"
 #include "../utilities/log.h"
 #include "../api/api.h"
-
-typedef struct {
-    PyObject_HEAD
-    uint32_t id;
-    uint32_t type;
-    uint16_t x;
-    uint16_t y;
-} PyUnit;
 
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     PyUnit *self;
@@ -34,6 +27,14 @@ static PyObject *PyUnit_repr(PyUnit *self) {
     return PyUnicode_FromFormat("<Unit id=%u, x=%u, y=%u>", self->id, self->x, self->y);
 }
 
+static PyMemberDef PyUnit_members[] = {
+    {"id", T_UINT, offsetof(PyUnit, id), READONLY, "Unit ID"},
+    {"type", T_UINT, offsetof(PyUnit, type), READONLY, "Unit Type"},
+    {"x", T_USHORT, offsetof(PyUnit, x), READONLY, "X Position"},
+    {"y", T_USHORT, offsetof(PyUnit, y), READONLY, "Y Position"},
+    {NULL}  // Sentinel
+};
+
 static PyTypeObject PyUnitType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "game.Unit",
@@ -42,6 +43,7 @@ static PyTypeObject PyUnitType = {
     .tp_new = PyUnit_new,
     .tp_init = (initproc)PyUnit_init,
     .tp_repr = (reprfunc)PyUnit_repr,
+    .tp_members = PyUnit_members,
 };
 
 static PyObject *py_get_player_unit(PyObject *self, PyObject *args) {
@@ -50,6 +52,7 @@ static PyObject *py_get_player_unit(PyObject *self, PyObject *args) {
 
     PyUnit *py_unit = PyObject_New(PyUnit, &PyUnitType);
     py_unit->id = player->dwUnitId;
+    py_unit->type = player->dwType;
     py_unit->x = player->pPath->xPos;
     py_unit->y = player->pPath->yPos;
     return (PyObject *)py_unit;
@@ -59,9 +62,11 @@ static PyObject *py_get_item_table(PyObject *self, PyObject *args) {
     PyObject *list = PyList_New(128);
     for (int i = 0; i < 128; i++) {
         struct UnitAny *unit = ItemTable[i];
+
         if (unit) {
-            PyUnit *py_unit = PyObject_New(PyUnit, &PyUnitType);
+            PyUnit *py_unit = (PyUnit *)PyObject_New(PyUnit, &PyUnitType);
             py_unit->id = unit->dwUnitId;
+            py_unit->type = unit->dwTxtFileNo;
             py_unit->x = unit->pItemPath->dwPosX;
             py_unit->y = unit->pItemPath->dwPosY;
             PyList_SET_ITEM(list, i, (PyObject *)py_unit);
@@ -108,16 +113,35 @@ static PyObject *py_register_tick(PyObject *self, PyObject *args) {
 
 void python_tick(void) {
     if (!tick_functions) return;
+
     PyGILState_STATE gstate = PyGILState_Ensure();
+    PyThreadState *tstate = PyGILState_GetThisThreadState();
+
+    if (!tstate || PyErr_Occurred()) {
+        PyErr_Print();
+        write_log("ERR", "Python thread state is invalid in python_tick().");
+        PyGILState_Release(gstate);
+        return;
+    }
+
     Py_ssize_t size = PyList_Size(tick_functions);
+
     for (Py_ssize_t i = 0; i < size; i++) {
         PyObject *func = PyList_GetItem(tick_functions, i);
-        if (func) {
-            PyObject_CallObject(func, NULL);
+        if (func && PyCallable_Check(func)) {
+            PyObject *result = PyObject_CallObject(func, NULL);
+            if (!result) {
+                PyErr_Print();
+                PyErr_Clear();
+                write_log("ERR", "Python tick function execution failed.");
+            }
+            Py_XDECREF(result);
         }
     }
+
     PyGILState_Release(gstate);
 }
+
 
 static PyMethodDef GameMethods[] = {
     {"get_player_unit", py_get_player_unit, METH_NOARGS, NULL},

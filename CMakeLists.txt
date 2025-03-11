@@ -37,10 +37,13 @@ set_target_properties(flexlib PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
-add_custom_target(copy_resources ALL
+add_custom_target(copy_files ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     "${CMAKE_SOURCE_DIR}/resources"
     "${CMAKE_BINARY_DIR}/resources"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/scripts"
+    "${CMAKE_BINARY_DIR}/scripts"
 )
 
-add_dependencies(flexlib copy_resources)
+add_dependencies(flexlib copy_files)
