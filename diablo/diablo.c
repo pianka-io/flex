@@ -1,8 +1,9 @@
+#include <stdbool.h>
 #include <windows.h>
+#include "../utilities/log.h"
 #include "constants.h"
 #include "diablo.h"
-
-#include <stdbool.h>
+#include "hooks.h"
 
 uint32_t *screen_width;
 uint32_t *screen_height;
@@ -22,6 +23,11 @@ GetPlayerUnit_t GetPlayerUnit = NULL;
 GetUnitX_t GetUnitX = NULL;
 GetUnitY_t GetUnitY = NULL;
 SendPacket_t SendPacket = NULL;
+GetTextSize_t GetTextSize = NULL;
+SetTextSize_t SetTextSize = NULL;
+InitCellFile_t InitCellFile = NULL;
+DrawAutomapCell2_t DrawAutomapCell2 = NULL;
+DrawTextEx2_t DrawTextEx2 = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -31,8 +37,11 @@ struct UnitAny **ItemTable = NULL;
 struct UnitAny **TileTable = NULL;
 
 void Initialize() {
-    HMODULE d2client = GetModuleHandleA("D2Client.dll");
-    HMODULE d2net = GetModuleHandleA("D2Net.dll");
+    HMODULE d2client = GetModuleHandleA("d2client.dll");
+    HMODULE d2net = GetModuleHandleA("d2net.dll");
+    HMODULE d2win = GetModuleHandleA("d2win.dll");
+    HMODULE d2gfx = GetModuleHandleA("d2gfx.dll");
+    HMODULE d2cmp = GetModuleHandleA("d2cmp.dll");
     if (!d2client) {
         return;
     }
@@ -56,6 +65,11 @@ void Initialize() {
     GetUnitX = (GetUnitX_t)((uintptr_t)d2client + 0x1630);
     GetUnitY = (GetUnitY_t)((uintptr_t)d2client + 0x1660);
     SendPacket = (SendPacket_t)((uintptr_t)d2net + 0x7650);
+    GetTextSize = (GetTextSize_t)((uintptr_t)d2win + 0x12700);
+    SetTextSize = (SetTextSize_t)((uintptr_t)d2win + 0x12FE0);
+    InitCellFile = (InitCellFile_t)((uintptr_t)d2cmp + 0x11AC0);
+    DrawAutomapCell2 = (DrawAutomapCell2_t)((uintptr_t)d2gfx + 0xB080);
+    DrawTextEx2 = (DrawTextEx2_t)((uintptr_t)d2win + 0x12FA0);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;
@@ -66,6 +80,9 @@ void Initialize() {
     MissileTable = &unit_table[128 * UNIT_MISSILE];
     ItemTable    = &unit_table[128 * UNIT_ITEM];
     TileTable    = &unit_table[128 * UNIT_TILE];
+
+    /* hooks */
+    hook();
 }
 
 bool Interact(uint32_t unit_id, uint32_t unit_type) {

@@ -1,9 +1,9 @@
 #include <windows.h>
 #include <stdio.h>
-#include <math.h>
+#include <Python.h>
 
-#include "api.h"
-#include "log.h"
+#include "api/api.h"
+#include "utilities/log.h"
 #include "diablo/diablo.h"
 
 void print_art() {
@@ -33,16 +33,13 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     write_log("INF","version 0.1 (Warnet 2025)");
     write_log("INF","screen dimensions %ix%i", *screen_width, *screen_height);
     write_log("INF","character %s", GetPlayerUnit()->pPlayerData->szName);
-    load_plugins();
+    // load_plugins();
 
-    Sleep(1000);
+    Py_Initialize();
+    PyRun_SimpleString("print('Python says:', 2 + 2)");
+    Py_Finalize();
 
     while (1) {
-        for (int i = 0; i < MAX_PLUGINS; i++) {
-            if (plugins[i] && plugins[i]->tick) {
-                plugins[i]->tick();
-            }
-        }
         Sleep(16);
     }
 }

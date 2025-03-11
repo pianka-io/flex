@@ -406,5 +406,36 @@ struct UnitAny {
     struct UnitAny *pRoomNext;
 };
 
+struct GfxCell {
+    uint32_t flags;
+    uint32_t width;
+    uint32_t height;
+    uint32_t xoffs;
+    uint32_t yoffs;
+    uint32_t _2;
+    uint32_t lpParent;
+    uint32_t length;
+    uint8_t cols;
+};
+
+struct CellFile {
+    uint32_t dwVersion;
+    struct {
+        uint16_t dwFlags;
+        uint8_t mylastcol;
+        uint8_t mytabno:1;
+    };
+    uint32_t eFormat;
+    uint32_t termination;
+    uint32_t numdirs;
+    uint32_t numcells;
+    struct GfxCell *cells[255];
+};
+
+struct CellContext {
+    uint32_t _1[13];
+    struct CellFile* pCellFile;
+    uint32_t _2[4];
+};
 
 #endif
