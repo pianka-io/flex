@@ -28,6 +28,8 @@ typedef void(__stdcall *InitCellFile_t)(void *cellfile, struct CellFile **outptr
 typedef void(__stdcall *DrawAutomapCell2_t)(struct CellContext* context, uint32_t xpos, uint32_t ypos, uint32_t bright2, uint32_t bright, uint8_t *coltab);
 typedef void(__fastcall *DrawTextEx2_t)(const wchar_t *wStr, uint32_t xPos, uint32_t yPos, uint32_t dwColor, uint32_t dwUnk);
 typedef struct ItemText *(__stdcall *GetItemText_t)(uint32_t dwItemNo);
+typedef struct StatList *(__stdcall *GetStatList_t)(struct UnitAny* pUnit, uint32_t unknown, uint32_t dwMaxEntries);
+typedef uint32_t(__stdcall *CopyStatList_t)(struct StatList* pStatList, struct Stat* pStatArray, uint32_t dwMaxEntries);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -45,6 +47,8 @@ extern InitCellFile_t InitCellFile;
 extern DrawAutomapCell2_t DrawAutomapCell2;
 extern DrawTextEx2_t DrawTextEx2;
 extern GetItemText_t GetItemText;
+extern GetStatList_t GetStatList;
+extern CopyStatList_t CopyStatList;
 
 /* tables */
 extern struct UnitAny **PlayerTable;

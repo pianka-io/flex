@@ -236,7 +236,6 @@ struct CellFile* LoadCellFile(char* lpszPath) {
             cache_count++;
         }
 
-        write_log("DBG", "CellFile loaded: %s", lpszPath);
         return cellFile;
     }
     return NULL;

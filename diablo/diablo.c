@@ -29,6 +29,8 @@ InitCellFile_t InitCellFile = NULL;
 DrawAutomapCell2_t DrawAutomapCell2 = NULL;
 DrawTextEx2_t DrawTextEx2 = NULL;
 GetItemText_t GetItemText = NULL;
+GetStatList_t GetStatList = NULL;
+CopyStatList_t CopyStatList = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -73,6 +75,8 @@ void Initialize() {
     DrawAutomapCell2 = (DrawAutomapCell2_t)((uintptr_t)d2gfx + 0xB080);
     DrawTextEx2 = (DrawTextEx2_t)((uintptr_t)d2win + 0x12FA0);
     GetItemText = (GetItemText_t)((uintptr_t)d2common + 0x719A0);
+    GetStatList = (GetStatList_t)((uintptr_t)d2common + 0x37EC0);
+    CopyStatList = (CopyStatList_t)((uintptr_t)d2common + 0x383C0);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;

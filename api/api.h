@@ -3,12 +3,14 @@
 
 typedef struct {
     PyObject_HEAD
+    struct UnitAny *unit;
     uint32_t id;
     uint32_t type;
     uint32_t dwTxtFileNo;
     /* item */
     uint16_t pItemPathdwPosX;
     uint16_t pItemPathdwPosY;
+    uint16_t pItemDatadwQuality;
     /* character */
     uint16_t pPathxPos;
     uint16_t pPathyPos;
