@@ -438,4 +438,21 @@ struct CellContext {
     uint32_t _2[4];
 };
 
+struct ItemText {
+    wchar_t szName2[0x40];
+    union {
+        uint32_t dwCode;
+        char szCode[4];
+    };
+    uint8_t _2[0x70];
+    uint16_t nLocaleTxtNo;
+    uint8_t _2a[0x19];
+    uint8_t xSize;
+    uint8_t ySize;
+    uint8_t _2b[13];
+    uint8_t nType;
+    uint8_t _3[0x0d];
+    uint8_t fQuest;
+};
+
 #endif

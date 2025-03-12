@@ -28,6 +28,7 @@ SetTextSize_t SetTextSize = NULL;
 InitCellFile_t InitCellFile = NULL;
 DrawAutomapCell2_t DrawAutomapCell2 = NULL;
 DrawTextEx2_t DrawTextEx2 = NULL;
+GetItemText_t GetItemText = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -37,6 +38,7 @@ struct UnitAny **ItemTable = NULL;
 struct UnitAny **TileTable = NULL;
 
 void Initialize() {
+    HMODULE d2common = GetModuleHandleA("d2common.dll");
     HMODULE d2client = GetModuleHandleA("d2client.dll");
     HMODULE d2net = GetModuleHandleA("d2net.dll");
     HMODULE d2win = GetModuleHandleA("d2win.dll");
@@ -70,6 +72,7 @@ void Initialize() {
     InitCellFile = (InitCellFile_t)((uintptr_t)d2cmp + 0x11AC0);
     DrawAutomapCell2 = (DrawAutomapCell2_t)((uintptr_t)d2gfx + 0xB080);
     DrawTextEx2 = (DrawTextEx2_t)((uintptr_t)d2win + 0x12FA0);
+    GetItemText = (GetItemText_t)((uintptr_t)d2common + 0x719A0);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;
@@ -85,7 +88,7 @@ void Initialize() {
     hook();
 }
 
-bool Interact(uint32_t unit_id, uint32_t unit_type) {
+bool PickUp(uint32_t unit_id, uint32_t unit_type) {
     uint8_t *packet = malloc(13);
     if (!packet) return 0;
 
@@ -97,4 +100,16 @@ bool Interact(uint32_t unit_id, uint32_t unit_type) {
     SendPacket(13, 1, packet);
     free(packet);
     return 1;
+}
+
+void GetItemCodeEx(struct UnitAny* pUnit, char* szBuf) {
+    if (pUnit->dwType == UNIT_ITEM)
+    {
+        struct ItemText* pTxt = GetItemText(pUnit->dwTxtFileNo);
+        if(pTxt)
+        {
+            memcpy(szBuf, pTxt->szCode, 3);
+            szBuf[3] = 0x00;
+        }
+    }
 }

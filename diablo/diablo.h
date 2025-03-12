@@ -27,6 +27,7 @@ typedef uint32_t(__fastcall *SetTextSize_t)(size_t size);
 typedef void(__stdcall *InitCellFile_t)(void *cellfile, struct CellFile **outptr, char *srcfile, uint32_t lineno, uint32_t filever, uint8_t *filename);
 typedef void(__stdcall *DrawAutomapCell2_t)(struct CellContext* context, uint32_t xpos, uint32_t ypos, uint32_t bright2, uint32_t bright, uint8_t *coltab);
 typedef void(__fastcall *DrawTextEx2_t)(const wchar_t *wStr, uint32_t xPos, uint32_t yPos, uint32_t dwColor, uint32_t dwUnk);
+typedef struct ItemText *(__stdcall *GetItemText_t)(uint32_t dwItemNo);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -43,6 +44,7 @@ extern SetTextSize_t SetTextSize;
 extern InitCellFile_t InitCellFile;
 extern DrawAutomapCell2_t DrawAutomapCell2;
 extern DrawTextEx2_t DrawTextEx2;
+extern GetItemText_t GetItemText;
 
 /* tables */
 extern struct UnitAny **PlayerTable;
@@ -56,6 +58,7 @@ extern struct UnitAny **TileTable;
 void Initialize();
 
 /* helpers */
-bool Interact(uint32_t unit_id, uint32_t unit_type);
+void GetItemCodeEx(struct UnitAny* pUnit, char* szBuf);
+bool PickUp(uint32_t unit_id, uint32_t unit_type);
 
 #endif

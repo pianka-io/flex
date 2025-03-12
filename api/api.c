@@ -16,23 +16,15 @@ static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds) 
     return (PyObject *)self;
 }
 
-static int PyUnit_init(PyUnit *self, PyObject *args, PyObject *kwds) {
-    if (!PyArg_ParseTuple(args, "IHH", &self->id, &self->x, &self->y)) {
-        return -1;
-    }
-    return 0;
-}
-
-static PyObject *PyUnit_repr(PyUnit *self) {
-    return PyUnicode_FromFormat("<Unit id=%u, x=%u, y=%u>", self->id, self->x, self->y);
-}
-
 static PyMemberDef PyUnit_members[] = {
     {"id", T_UINT, offsetof(PyUnit, id), READONLY, "Unit ID"},
     {"type", T_UINT, offsetof(PyUnit, type), READONLY, "Unit Type"},
-    {"x", T_USHORT, offsetof(PyUnit, x), READONLY, "X Position"},
-    {"y", T_USHORT, offsetof(PyUnit, y), READONLY, "Y Position"},
-    {NULL}  // Sentinel
+    {"dwTxtFileNo", T_UINT, offsetof(PyUnit, dwTxtFileNo), READONLY, "Unit Type"},
+    {"pItemPathdwPosX", T_USHORT, offsetof(PyUnit, pItemPathdwPosX), READONLY, "X Position"},
+    {"pItemPathdwPosY", T_USHORT, offsetof(PyUnit, pItemPathdwPosY), READONLY, "X Position"},
+    {"pPathxPos", T_USHORT, offsetof(PyUnit, pPathxPos), READONLY, "X Position"},
+    {"pPathyPos", T_USHORT, offsetof(PyUnit, pPathyPos), READONLY, "Y Position"},
+    {NULL}
 };
 
 static PyTypeObject PyUnitType = {
@@ -41,8 +33,6 @@ static PyTypeObject PyUnitType = {
     .tp_basicsize = sizeof(PyUnit),
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_new = PyUnit_new,
-    .tp_init = (initproc)PyUnit_init,
-    .tp_repr = (reprfunc)PyUnit_repr,
     .tp_members = PyUnit_members,
 };
 
@@ -53,8 +43,8 @@ static PyObject *py_get_player_unit(PyObject *self, PyObject *args) {
     PyUnit *py_unit = PyObject_New(PyUnit, &PyUnitType);
     py_unit->id = player->dwUnitId;
     py_unit->type = player->dwType;
-    py_unit->x = player->pPath->xPos;
-    py_unit->y = player->pPath->yPos;
+    py_unit->pPathxPos = player->pPath->xPos;
+    py_unit->pPathyPos = player->pPath->yPos;
     return (PyObject *)py_unit;
 }
 
@@ -66,9 +56,9 @@ static PyObject *py_get_item_table(PyObject *self, PyObject *args) {
         if (unit) {
             PyUnit *py_unit = (PyUnit *)PyObject_New(PyUnit, &PyUnitType);
             py_unit->id = unit->dwUnitId;
-            py_unit->type = unit->dwTxtFileNo;
-            py_unit->x = unit->pItemPath->dwPosX;
-            py_unit->y = unit->pItemPath->dwPosY;
+            py_unit->dwTxtFileNo = unit->dwTxtFileNo;
+            py_unit->pItemPathdwPosX = unit->pItemPath->dwPosX;
+            py_unit->pItemPathdwPosY = unit->pItemPath->dwPosY;
             PyList_SET_ITEM(list, i, (PyObject *)py_unit);
         } else {
             PyList_SET_ITEM(list, i, Py_None);
@@ -83,7 +73,7 @@ static PyObject *py_interact(PyObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "II", &unit_id, &unit_type)) {
         return NULL;
     }
-    Interact(unit_id, unit_type);
+    PickUp(unit_id, unit_type);
     Py_RETURN_NONE;
 }
 
@@ -142,13 +132,38 @@ void python_tick(void) {
     PyGILState_Release(gstate);
 }
 
+static PyObject *py_get_item_code(PyObject *self, PyObject *args) {
+    uint32_t txt_file_no;
+    if (!PyArg_ParseTuple(args, "I", &txt_file_no)) {
+        return NULL;
+    }
+
+    struct UnitAny* pUnit = NULL;
+
+    for (int i = 0; i < 128; i++) {
+        if (ItemTable[i] && ItemTable[i]->dwTxtFileNo == txt_file_no) {
+            pUnit = ItemTable[i];
+            break;
+        }
+    }
+
+    if (!pUnit) {
+        Py_RETURN_NONE;
+    }
+
+    char itemCode[4] = {0};
+    GetItemCodeEx(pUnit, itemCode);
+
+    return PyUnicode_FromString(itemCode);
+}
 
 static PyMethodDef GameMethods[] = {
     {"get_player_unit", py_get_player_unit, METH_NOARGS, NULL},
     {"get_item_table", py_get_item_table, METH_NOARGS, NULL},
-    {"interact", py_interact, METH_VARARGS, NULL},
+    {"pick_up", py_interact, METH_VARARGS, NULL},
     {"write_log", py_write_log, METH_VARARGS, NULL},
     {"register_tick", py_register_tick, METH_VARARGS, NULL},
+    {"get_item_code", py_get_item_code, METH_VARARGS, "Converts a file number to a 3-letter item code."},
     {NULL, NULL, 0, NULL}
 };
 

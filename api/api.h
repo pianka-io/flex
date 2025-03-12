@@ -5,13 +5,16 @@ typedef struct {
     PyObject_HEAD
     uint32_t id;
     uint32_t type;
-    uint16_t x;
-    uint16_t y;
+    uint32_t dwTxtFileNo;
+    /* item */
+    uint16_t pItemPathdwPosX;
+    uint16_t pItemPathdwPosY;
+    /* character */
+    uint16_t pPathxPos;
+    uint16_t pPathyPos;
 } PyUnit;
 
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
-static int PyUnit_init(PyUnit *self, PyObject *args, PyObject *kwds);
-static PyObject *PyUnit_repr(PyUnit *self);
 static PyObject *py_get_player_unit(PyObject *self, PyObject *args);
 static PyObject *py_get_item_table(PyObject *self, PyObject *args);
 static PyObject *py_interact(PyObject *self, PyObject *args);

@@ -1,21 +1,12 @@
-import game
-import math
+from flex import *
 
-GOLD = 0x20B
 
-def pickup_gold_tick():
-    player = game.get_player_unit()
-    if not player:
-        return
+@flex_tick
+def tick():
+    player = get_player()
 
-    for unit in game.get_item_table():
-        if not unit or unit.id == 0:
-            continue
-
-        if unit.type == GOLD:
-            distance = math.sqrt((unit.x - player.x) ** 2 + (unit.y - player.y) ** 2)
-            if distance <= 5.0:
-                game.interact(unit.id, 4)
-                game.write_log("INF", f"Picking up gold at ({unit.x}, {unit.y})")
-
-game.register_tick(pickup_gold_tick)
+    for item in get_all_items():
+        if item.item_type == Miscellaneous.GOLD:
+            how_far = distance(player.position, item.position)
+            if how_far <= 5.0:
+                pick_up(item)

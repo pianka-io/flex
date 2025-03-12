@@ -51,15 +51,13 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     } else {
         do {
             if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+                if (strcmp(findData.cFileName, "flex.py") == 0) {
+                    continue;
+                }
+
                 char module_name[MAX_PATH];
                 strncpy(module_name, findData.cFileName, strlen(findData.cFileName) - 3);
                 module_name[strlen(findData.cFileName) - 3] = '\0';
-
-                for (int i = 0; module_name[i]; i++) {
-                    if (module_name[i] == '-') {
-                        module_name[i] = '_';
-                    }
-                }
 
                 PyObject *py_module_name = PyUnicode_FromString(module_name);
                 PyObject *module = PyImport_Import(py_module_name);
