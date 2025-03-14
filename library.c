@@ -31,7 +31,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     print_art();
     write_log("INF", "version 0.1 (Warnet 2025)");
     write_log("INF", "screen dimensions %ix%i", *screen_width, *screen_height);
-    write_log("INF", "character %s", GetPlayerUnit()->pPlayerData->szName);
+    // write_log("INF", "character %s", GetPlayerUnit()->pPlayerData->szName);
 
     if (PyImport_AppendInittab("game", PyInit_game) == -1) {
         write_log("ERR", "Failed to register Python module 'game'");
@@ -41,10 +41,10 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     Py_Initialize();
 
     PyObject *sysPath = PySys_GetObject("path");
-    PyList_Append(sysPath, PyUnicode_FromString("C:\\Users\\Rick Pianka\\Code\\flexlib\\cmake-build-debug-visual-studio\\scripts"));
+    PyList_Append(sysPath, PyUnicode_FromString("scripts"));
 
     WIN32_FIND_DATAA findData;
-    HANDLE hFind = FindFirstFileA("C:\\Users\\Rick Pianka\\Code\\flexlib\\cmake-build-debug-visual-studio\\scripts\\*.py", &findData);
+    HANDLE hFind = FindFirstFileA(".\\scripts\\*.py", &findData);
 
     if (hFind == INVALID_HANDLE_VALUE) {
         write_log("ERR", "No Python scripts found in scripts/ directory.");
@@ -76,7 +76,9 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     }
 
     while (1) {
-        python_tick();
+        if (GetPlayerUnit() != NULL) {
+            python_tick();
+        }
         Sleep(16);
     }
 

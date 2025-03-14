@@ -292,7 +292,7 @@ void myDrawText(const char* szwText, int x, int y, int color, int font) {
 }
 
 void DrawLogo(void) {
-    static char image[] = "C:\\Users\\Rick Pianka\\Code\\flexlib\\cmake-build-debug-visual-studio\\resources\\name.bmp";
+    static char image[] = "resources\\name.bmp";
     static char version[] = "\xFF" "c0flex by pianka";
 
     int x = 0;
