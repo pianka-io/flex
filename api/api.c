@@ -218,6 +218,15 @@ static PyObject *py_get_item_stats(PyObject *self, PyObject *args) {
     return pyList;
 }
 
+static PyObject *py_reveal_level(PyObject *self, PyObject *args) {
+    struct UnitAny *unit = GetPlayerUnit();
+    if (!unit || !unit->pPath || !unit->pPath->pRoom1 || !unit->pPath->pRoom1->pRoom2 || !unit->pPath->pRoom1->pRoom2->pLevel) {
+        Py_RETURN_NONE;
+    }
+    reveal_act(unit->pAct->dwAct + 1);
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef GameMethods[] = {
     {"get_player_unit", py_get_player_unit, METH_NOARGS, NULL},
     {"get_item_table", py_get_item_table, METH_NOARGS, NULL},
@@ -226,6 +235,7 @@ static PyMethodDef GameMethods[] = {
     {"register_tick", py_register_tick, METH_VARARGS, NULL},
     {"get_item_code", py_get_item_code, METH_VARARGS, NULL},
     {"get_item_stats", py_get_item_stats, METH_VARARGS, NULL},
+    {"reveal_level", py_reveal_level, METH_NOARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 

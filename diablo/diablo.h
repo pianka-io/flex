@@ -6,11 +6,15 @@
 #include "structs.h"
 
 /* memory */
+extern uint32_t *exp_char_flag;
+extern uint32_t *load_act_1;
+extern uint32_t *load_act_2;
 extern uint32_t *screen_width;
 extern uint32_t *screen_height;
 extern uint32_t *mouse_x;
 extern uint32_t *mouse_y;
 extern uint32_t *automap_open;
+extern struct AutomapLayer **automap_layer;
 
 /* prototypes */
 typedef void(__stdcall *PrintGameString_t)(wchar_t *wMessage, int nColor);
@@ -30,6 +34,19 @@ typedef void(__fastcall *DrawTextEx2_t)(const wchar_t *wStr, uint32_t xPos, uint
 typedef struct ItemText *(__stdcall *GetItemText_t)(uint32_t dwItemNo);
 typedef struct StatList *(__stdcall *GetStatList_t)(struct UnitAny* pUnit, uint32_t unknown, uint32_t dwMaxEntries);
 typedef uint32_t(__stdcall *CopyStatList_t)(struct StatList* pStatList, struct Stat* pStatArray, uint32_t dwMaxEntries);
+typedef void(__stdcall *RevealAutomapRoom_t)(struct Room1 *pRoom1, uint32_t dwClipFlag, struct AutomapLayer *alayer);
+typedef struct AutomapLayer *(__fastcall *InitAutomapLayer_I_t)(uint32_t layerNo);
+typedef struct AutomapLayer2 *(__fastcall *GetLayer_t)(uint32_t dwLevelNo);
+typedef void(__stdcall *AddRoomData_t)(struct Act *ptAct, uint32_t LevelId, uint32_t Xpos, uint32_t Ypos, struct Room1 * pRoom);
+typedef void(__stdcall *RemoveRoomData_t)(struct Act *ptAct, uint32_t LevelId, uint32_t Xpos, uint32_t Ypos, struct Room1 * pRoom);
+typedef struct ObjectTxt *(__stdcall *GetObjectText_t)(uint32_t objno);
+typedef struct AutomapCell *(__fastcall *NewAutomapCell_t)(void);
+typedef void(__fastcall *AddAutomapCell_t)(struct AutomapCell *aCell, struct AutomapCell **node);
+typedef struct Act *(__stdcall *LoadAct_t)(uint32_t ActNumber, uint32_t MapId, uint32_t Unk, uint32_t Unk_2, uint32_t Unk_3, uint32_t Unk_4, uint32_t TownLevelId, void *Func_1, void *Func_2);
+typedef uint8_t(__stdcall *GetDifficulty_t)(void);
+typedef void(__stdcall *InitLevel_t)(struct Level *pLevel);
+typedef void(__stdcall *UnloadAct_t)(struct Act *pAct);
+typedef struct Level *(__fastcall *GetLevelEx_t)(struct ActMisc *pMisc, uint32_t dwLevelNo);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -49,6 +66,19 @@ extern DrawTextEx2_t DrawTextEx2;
 extern GetItemText_t GetItemText;
 extern GetStatList_t GetStatList;
 extern CopyStatList_t CopyStatList;
+extern RevealAutomapRoom_t RevealAutomapRoom;
+extern InitAutomapLayer_I_t InitAutomapLayer_I;
+extern GetLayer_t GetLayer;
+extern AddRoomData_t AddRoomData;
+extern RemoveRoomData_t RemoveRoomData;
+extern GetObjectText_t GetObjectText;
+extern NewAutomapCell_t NewAutomapCell;
+extern AddAutomapCell_t AddAutomapCell;
+extern LoadAct_t LoadAct;
+extern GetDifficulty_t GetDifficulty;
+extern InitLevel_t InitLevel;
+extern UnloadAct_t UnloadAct;
+extern GetLevelEx_t GetLevelEx;
 
 /* tables */
 extern struct UnitAny **PlayerTable;
@@ -64,5 +94,9 @@ void Initialize();
 /* helpers */
 void GetItemCodeEx(struct UnitAny* pUnit, char* szBuf);
 bool PickUp(uint32_t unit_id, uint32_t unit_type);
+void reveal_act(uint32_t act);
+void reveal_level(struct Level *level);
+void reveal_room(struct Room2* room);
+void draw_presets(struct Room2 *pRoom2);
 
 #endif

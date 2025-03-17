@@ -1322,7 +1322,7 @@ class Item(Unit):
 #####################################
 ## functions                       ##
 #####################################
-def pick_up(item: Item):
+def pick_up(item: Item) -> None:
     game.pick_up(item.id, 4)
 
 def get_player() -> Character:
@@ -1336,6 +1336,9 @@ def get_all_items() -> list[Item]:
         results.append(Item(unit))
 
     return results
+
+def reveal_level() -> None:
+    game.reveal_level()
 
 
 #####################################

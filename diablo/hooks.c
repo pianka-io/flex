@@ -293,7 +293,7 @@ void myDrawText(const char* szwText, int x, int y, int color, int font) {
 
 void DrawLogo(void) {
     static char image[] = "resources\\name.bmp";
-    static char version[] = "\xFF" "c0flex by pianka";
+    static char version[] = "\xFF" "c4flex 0.1";
 
     int x = 0;
     if (version[0] != '\0') {
