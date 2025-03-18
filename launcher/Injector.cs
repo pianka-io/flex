@@ -30,22 +30,16 @@ public static class Injector
                 try
                 {
                     Directory.Delete(targetPath, true);
-                    Console.WriteLine(@$"Deleted: {targetPath}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(@$"Failed to delete {targetPath}: {ex.Message}");
+                    MessageBox.Show(@$"Failed to delete {targetPath}: {ex.Message}");
                 }
             }
 
             if (Directory.Exists(sourcePath))
             {
                 CopyDirectory(sourcePath, targetPath);
-                Console.WriteLine(@$"Copied: {sourcePath} → {targetPath}");
-            }
-            else
-            {
-                Console.WriteLine(@$"Skipping '{folder}' - does not exist in {flexFolder}");
             }
         }
     }
@@ -72,6 +66,7 @@ public static class Injector
         var python = Path.Combine(flexFolder, "python313_d.dll");
         var flexlib = Path.Combine(flexFolder, "flexlib.dll");
         
+        EnableDebugPrivilege();
         Inject(process, python);
         Inject(process, flexlib);
     }
@@ -83,9 +78,10 @@ public static class Injector
             FileName = fileName,
             Arguments = arguments,
             UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
             WorkingDirectory = Path.GetDirectoryName(fileName),
             CreateNoWindow = false,
-            RedirectStandardOutput = true
         };
 
         Process process = new Process { StartInfo = startInfo };
@@ -127,13 +123,94 @@ public static class Injector
 
     public static void Inject(Process process, string path)
     {
-        string dll = path;
-        Process targetProcess = process;
-        IntPtr handle = OpenProcess(0x001F0FFF, false, targetProcess.Id);
-        IntPtr libraryAddress = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
-        IntPtr allocatedMemory = VirtualAllocEx(handle, IntPtr.Zero, (uint)dll.Length + 1, 0x00001000, 4);
-        Console.WriteLine("Loaded " + path);
-        WriteProcessMemory(handle, allocatedMemory, Encoding.Default.GetBytes(dll), (uint)dll.Length + 1, out _);
-        CreateRemoteThread(handle, IntPtr.Zero, 0, libraryAddress, allocatedMemory, 0, IntPtr.Zero);
+        try
+        {
+            IntPtr handle = OpenProcess(0x001F0FFF | 0x0020 | 0x0008 | 0x0010, false, process.Id);
+            if (handle == IntPtr.Zero)
+                throw new Exception($"OpenProcess failed: {Marshal.GetLastWin32Error()}");
+
+            IntPtr kernel32 = GetModuleHandle("kernel32.dll");
+            if (kernel32 == IntPtr.Zero) 
+                throw new Exception($"GetModuleHandle(kernel32.dll) failed: {Marshal.GetLastWin32Error()}");
+
+            IntPtr loadLibraryAddr = GetProcAddress(kernel32, "LoadLibraryA");
+            if (loadLibraryAddr == IntPtr.Zero) 
+                throw new Exception($"GetProcAddress(LoadLibraryA) failed: {Marshal.GetLastWin32Error()}");
+
+            IntPtr allocatedMemory = VirtualAllocEx(handle, IntPtr.Zero, (uint)path.Length + 1, 0x00001000 | 0x00002000, 0x40);
+            if (allocatedMemory == IntPtr.Zero) 
+                throw new Exception($"VirtualAllocEx failed: {Marshal.GetLastWin32Error()}");
+
+            bool writeSuccess = WriteProcessMemory(handle, allocatedMemory, Encoding.ASCII.GetBytes(path), (uint)path.Length + 1, out _);
+            if (!writeSuccess) 
+                throw new Exception($"WriteProcessMemory failed: {Marshal.GetLastWin32Error()}");
+
+            IntPtr thread = CreateRemoteThread(handle, IntPtr.Zero, 0, loadLibraryAddr, allocatedMemory, 0, IntPtr.Zero);
+            if (thread == IntPtr.Zero) 
+                throw new Exception($"CreateRemoteThread failed: {Marshal.GetLastWin32Error()}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($@"Injection failed: {ex.Message}");
+        }
+    }
+    
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges,
+        ref TOKEN_PRIVILEGES NewState, int BufferLength, IntPtr PreviousState, IntPtr ReturnLength);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, ref LUID lpLuid);
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, out IntPtr TokenHandle);
+
+    const int TOKEN_ADJUST_PRIVILEGES = 0x20;
+    const int TOKEN_QUERY = 0x8;
+    const string SE_DEBUG_NAME = "SeDebugPrivilege";
+    const int SE_PRIVILEGE_ENABLED = 0x2;
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct TOKEN_PRIVILEGES
+    {
+        public int PrivilegeCount;
+        public LUID Luid;
+        public int Attributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct LUID
+    {
+        public uint LowPart;
+        public int HighPart;
+    }
+
+    static void EnableDebugPrivilege()
+    {
+        IntPtr hToken;
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out hToken))
+        {
+            MessageBox.Show("OpenProcessToken failed.");
+            return;
+        }
+
+        TOKEN_PRIVILEGES tkp;
+        tkp.PrivilegeCount = 1;
+        tkp.Luid = new LUID();
+        if (!LookupPrivilegeValue(null, SE_DEBUG_NAME, ref tkp.Luid))
+        {
+            MessageBox.Show("LookupPrivilegeValue failed.");
+            return;
+        }
+
+        tkp.Attributes = SE_PRIVILEGE_ENABLED;
+
+        if (!AdjustTokenPrivileges(hToken, false, ref tkp, 0, IntPtr.Zero, IntPtr.Zero))
+        {
+            MessageBox.Show("AdjustTokenPrivileges failed.");
+        }
     }
 }
