@@ -21,6 +21,9 @@ static PyMemberDef PyUnit_members[] = {
     {"type", T_UINT, offsetof(PyUnit, type), READONLY, ""},
     {"dwTxtFileNo", T_UINT, offsetof(PyUnit, dwTxtFileNo), READONLY, ""},
     /* item */
+    {"pItemDatadwFlags", T_UINT, offsetof(PyUnit, pItemDatadwFlags), READONLY, ""},
+    {"pItemDatadwItemLevel", T_UINT, offsetof(PyUnit, pItemDatadwItemLevel), READONLY, ""},
+    {"pItemDatadpOwner", T_OBJECT_EX, offsetof(PyUnit, pItemDatadpOwner), READONLY, ""},
     {"pItemPathdwPosX", T_USHORT, offsetof(PyUnit, pItemPathdwPosX), READONLY, ""},
     {"pItemPathdwPosY", T_USHORT, offsetof(PyUnit, pItemPathdwPosY), READONLY, ""},
     {"pItemDatadwQuality", T_USHORT, offsetof(PyUnit, pItemDatadwQuality), READONLY, ""},
@@ -39,16 +42,44 @@ static PyTypeObject PyUnitType = {
     .tp_members = PyUnit_members,
 };
 
-static PyObject *py_get_player_unit(PyObject *self, PyObject *args) {
-    struct UnitAny *player = GetPlayerUnit();
+static PyObject *build_player_unit(struct UnitAny *player) {
     if (!player) Py_RETURN_NONE;
 
     PyUnit *py_unit = PyObject_New(PyUnit, &PyUnitType);
     py_unit->id = player->dwUnitId;
     py_unit->type = player->dwType;
     py_unit->unit = player;
-    py_unit->pPathxPos = player->pPath->xPos;
-    py_unit->pPathyPos = player->pPath->yPos;
+    if (player->pPath) {
+        py_unit->pPathxPos = player->pPath->xPos;
+        py_unit->pPathyPos = player->pPath->yPos;
+    } else {
+        py_unit->pPathxPos = 0;
+        py_unit->pPathyPos = 0;
+    }
+    return (PyObject *)py_unit;
+}
+
+static PyObject *py_get_player_unit(PyObject *self, PyObject *args) {
+    struct UnitAny *player = GetPlayerUnit();
+    return build_player_unit(player);
+}
+
+static PyObject *build_item_unit(struct UnitAny *item) {
+    PyUnit *py_unit = PyObject_New(PyUnit, &PyUnitType);
+    py_unit->id = item->dwUnitId;
+    py_unit->type = item->dwType;
+    py_unit->unit = item;
+    py_unit->dwTxtFileNo = item->dwTxtFileNo;
+    py_unit->pItemDatadwFlags = item->pItemData->dwFlags;
+    py_unit->pItemDatadwItemLevel = item->pItemData->dwItemLevel;
+    if (item->pItemData->pOwnerInventory) {
+        py_unit->pItemDatadpOwner = build_player_unit(item->pItemData->pOwnerInventory->pOwner);
+    } else {
+        py_unit->pItemDatadpOwner = build_player_unit(NULL);
+    }
+    py_unit->pItemPathdwPosX = item->pItemPath->dwPosX;
+    py_unit->pItemPathdwPosY = item->pItemPath->dwPosY;
+    py_unit->pItemDatadwQuality = item->pItemData->dwQuality;
     return (PyObject *)py_unit;
 }
 
@@ -58,18 +89,11 @@ static PyObject *py_get_item_table(PyObject *self, PyObject *args) {
         struct UnitAny *unit = ItemTable[i];
 
         if (unit) {
-            PyUnit *py_unit = (PyUnit *)PyObject_New(PyUnit, &PyUnitType);
-            py_unit->id = unit->dwUnitId;
-            py_unit->type = unit->dwType;
-            py_unit->unit = unit;
-            py_unit->dwTxtFileNo = unit->dwTxtFileNo;
-            py_unit->pItemPathdwPosX = unit->pItemPath->dwPosX;
-            py_unit->pItemPathdwPosY = unit->pItemPath->dwPosY;
-            py_unit->pItemDatadwQuality = unit->pItemData->dwQuality;
-            PyList_SET_ITEM(list, i, (PyObject *)py_unit);
+            PyObject *item = build_item_unit(unit);
+            PyList_SET_ITEM(list, i, item);
         } else {
-            PyList_SET_ITEM(list, i, Py_None);
             Py_INCREF(Py_None);
+            PyList_SET_ITEM(list, i, Py_None);
         }
     }
     return list;

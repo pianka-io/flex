@@ -1,13 +1,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <memory.h>
 #include <windows.h>
 #include <wingdi.h>
 #include <string.h>
+#include "../library.h"
+#include "../utilities/log.h"
 #include "hooks.h"
 #include "diablo.h"
-#include "../utilities/log.h"
 
 #define INST_INT3	0xCC
 #define INST_CALL	0xE8
@@ -293,7 +293,7 @@ void myDrawText(const char* szwText, int x, int y, int color, int font) {
 
 void DrawLogo(void) {
     static char image[] = "resources\\name.bmp";
-    static char version[] = "\xFF" "c4flex 0.1";
+    static char version[] = "\xFF" "c4flex " FLEX_VERSION;
 
     int x = 0;
     if (version[0] != '\0') {

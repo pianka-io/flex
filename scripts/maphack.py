@@ -3,7 +3,7 @@ from time import sleep
 
 ran = False
 
-@flex_tick
+@loop(LoopType.FLEX)
 def tick():
     global ran
     if ran:

@@ -8,6 +8,9 @@ typedef struct {
     uint32_t type;
     uint32_t dwTxtFileNo;
     /* item */
+    uint32_t pItemDatadwFlags;
+    uint32_t pItemDatadwItemLevel;
+    PyObject *pItemDatadpOwner;
     uint16_t pItemPathdwPosX;
     uint16_t pItemPathdwPosY;
     uint16_t pItemDatadwQuality;

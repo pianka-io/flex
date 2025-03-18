@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <Python.h>
+#include "library.h"
 #include "api/api.h"
 #include "utilities/log.h"
 #include "diablo/diablo.h"
@@ -19,7 +20,7 @@ void print_art() {
 
     Initialize();
     PrintGameString(L"flex by pianka", 0);
-    PrintGameString(L"version 0.1 (Warnet 2025)", 0);
+    PrintGameString(L"version " FLEX_VERSION, 0);
 }
 
 DWORD WINAPI ConsoleThread(LPVOID lpParam) {

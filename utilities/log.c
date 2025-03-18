@@ -19,4 +19,5 @@ void write_log(const char *level, const char *format, ...) {
     va_end(args);
 
     printf("\n");
+    _flushall();
 }

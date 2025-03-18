@@ -1,6 +1,6 @@
 from flex import *
 
-@flex_tick
+@loop(LoopType.FLEX)
 def tick():
     player = get_player()
 
