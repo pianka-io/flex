@@ -19,8 +19,6 @@ void print_art() {
     printf("\n");
 
     Initialize();
-    PrintGameString(L"flex by pianka", 0);
-    PrintGameString(L"version " FLEX_VERSION, 0);
 }
 
 DWORD WINAPI ConsoleThread(LPVOID lpParam) {
@@ -30,9 +28,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     freopen("CONIN$", "r", stdin);
 
     print_art();
-    write_log("INF", "version 0.1 (Warnet 2025)");
-    write_log("INF", "screen dimensions %ix%i", *screen_width, *screen_height);
-    // write_log("INF", "character %s", GetPlayerUnit()->pPlayerData->szName);
+    write_log("INF", "version " FLEX_VERSION " by pianka");
 
     if (PyImport_AppendInittab("game", PyInit_game) == -1) {
         write_log("ERR", "Failed to register Python module 'game'");
@@ -77,9 +73,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     }
 
     while (1) {
-        if (GetPlayerUnit() != NULL) {
-            python_tick();
-        }
+        python_tick();
         Sleep(16);
     }
 

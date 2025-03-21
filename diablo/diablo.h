@@ -15,6 +15,7 @@ extern uint32_t *mouse_x;
 extern uint32_t *mouse_y;
 extern uint32_t *automap_open;
 extern struct AutomapLayer **automap_layer;
+extern struct GameInfo **game_info;
 
 /* prototypes */
 typedef void(__stdcall *PrintGameString_t)(wchar_t *wMessage, int nColor);

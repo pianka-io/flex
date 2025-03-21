@@ -17,7 +17,18 @@ typedef struct {
     /* character */
     uint16_t pPathxPos;
     uint16_t pPathyPos;
+    uint32_t dwAct;
 } PyUnit;
+
+typedef struct {
+    PyObject_HEAD
+    char *name;
+    char *password;
+    char *server_ip;
+    char *account_name;
+    char *character_name;
+    char *realm_name;
+} PyGameInfo;
 
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static PyObject *py_get_player_unit(PyObject *self, PyObject *args);

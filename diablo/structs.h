@@ -52,6 +52,17 @@ struct Room1;
 struct Room2;
 struct Level;
 
+struct GameInfo {
+    uint8_t _1[0x1B];
+    char szGameName[0x18];
+    char szGameServerIp[0x56];
+    char szAccountName[0x30];
+    char szCharName[0x18];
+    char szRealmName[0x18];
+    uint8_t _2[0x158];
+    char szGamePassword[0x18];
+};
+
 struct QuestInfo {
     void *pBuffer;
     uint32_t _1;

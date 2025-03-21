@@ -11,7 +11,8 @@ public partial class Window : Form
     {
         txtDiabloII.Text = @"C:\Users\Rick Pianka\Diablo II\Diablo II (1.13c)";
         // txtDiabloII.Text = @"C:\Program Files (x86)\Diablo II";
-        txtFlex.Text = Path.GetDirectoryName(Application.ExecutablePath);
+        txtFlex.Text = @"C:\Users\Rick Pianka\Code\flexlib\cmake-build-debug-visual-studio";
+        // txtFlex.Text = Path.GetDirectoryName(Application.ExecutablePath);
     }
 
     private void btnBrowseDiabloII_Click(object sender, EventArgs e)

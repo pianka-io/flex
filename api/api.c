@@ -30,6 +30,7 @@ static PyMemberDef PyUnit_members[] = {
     /* character */
     {"pPathxPos", T_USHORT, offsetof(PyUnit, pPathxPos), READONLY, ""},
     {"pPathyPos", T_USHORT, offsetof(PyUnit, pPathyPos), READONLY, ""},
+    {"dwAct", T_UINT, offsetof(PyUnit, dwAct), READONLY, ""},
     {NULL}
 };
 
@@ -56,6 +57,7 @@ static PyObject *build_player_unit(struct UnitAny *player) {
         py_unit->pPathxPos = 0;
         py_unit->pPathyPos = 0;
     }
+    py_unit->dwAct = player->dwAct;
     return (PyObject *)py_unit;
 }
 
@@ -242,16 +244,75 @@ static PyObject *py_get_item_stats(PyObject *self, PyObject *args) {
     return pyList;
 }
 
-static PyObject *py_reveal_level(PyObject *self, PyObject *args) {
+static PyObject *py_reveal_automap(PyObject *self, PyObject *args) {
     struct UnitAny *unit = GetPlayerUnit();
     if (!unit || !unit->pPath || !unit->pPath->pRoom1 || !unit->pPath->pRoom1->pRoom2 || !unit->pPath->pRoom1->pRoom2->pLevel) {
         Py_RETURN_NONE;
     }
-    reveal_act(unit->pAct->dwAct + 1);
+    for (int i = 1; i <= 5; i++) {
+        reveal_act(i);
+    }
     Py_RETURN_NONE;
 }
 
+static PyMemberDef PyGameInfo_members[] = {
+    {"name", T_STRING, offsetof(PyGameInfo, name), READONLY, ""},
+    {"password", T_STRING, offsetof(PyGameInfo, password), READONLY, ""},
+    {"server_ip", T_STRING, offsetof(PyGameInfo, server_ip), READONLY, ""},
+    {"account_name", T_STRING, offsetof(PyGameInfo, account_name), READONLY, ""},
+    {"character_name", T_STRING, offsetof(PyGameInfo, character_name), READONLY, ""},
+    {"realm_name", T_STRING, offsetof(PyGameInfo, realm_name), READONLY, ""},
+    {NULL}
+};
+
+static PyTypeObject PyGameInfoType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "game.GameInfo",
+    .tp_basicsize = sizeof(PyGameInfo),
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_members = PyGameInfo_members,
+};
+
+static PyObject *build_game_info(struct GameInfo *game_info) {
+    if (!game_info) Py_RETURN_NONE;
+
+    PyGameInfo *py_game_info = PyObject_New(PyGameInfo, &PyGameInfoType);
+    py_game_info->account_name = game_info->szAccountName;
+    py_game_info->character_name = game_info->szCharName;
+    py_game_info->name = game_info->szGameName;
+    py_game_info->password = game_info->szGamePassword;
+    py_game_info->realm_name = game_info->szRealmName;
+    py_game_info->server_ip = game_info->szGameServerIp;
+
+    return (PyObject *)py_game_info;
+}
+
+static PyObject *py_get_game_info(PyObject *self, PyObject *args) {
+    return build_game_info(*game_info);
+}
+
+static PyObject *py_is_game_ready(PyObject *self, PyObject *args) {
+	struct UnitAny* player = GetPlayerUnit();
+    if (player != NULL &&
+        player->pPath != NULL &&
+        player->pPath->pRoom1 != NULL &&
+        player->pPath->pRoom1->pRoom2 != NULL &&
+        player->pPath->pRoom1->pRoom2->pLevel != NULL &&
+        player->pPath->pRoom1->pRoom2->pLevel->dwLevelNo > 0 &&
+        player->pAct != NULL &&
+        player->pAct->pRoom1 != NULL &&
+        player->pInventory != NULL &&
+        player->pPath->xPos > 0 &&
+        player->pPath->yPos > 0) {
+        Py_RETURN_TRUE;
+    } else {
+        Py_RETURN_FALSE;
+    }
+}
+
 static PyMethodDef GameMethods[] = {
+    {"get_game_info", py_get_game_info, METH_NOARGS, NULL},
+    {"is_game_ready", py_is_game_ready, METH_NOARGS, NULL},
     {"get_player_unit", py_get_player_unit, METH_NOARGS, NULL},
     {"get_item_table", py_get_item_table, METH_NOARGS, NULL},
     {"pick_up", py_interact, METH_VARARGS, NULL},
@@ -259,7 +320,7 @@ static PyMethodDef GameMethods[] = {
     {"register_tick", py_register_tick, METH_VARARGS, NULL},
     {"get_item_code", py_get_item_code, METH_VARARGS, NULL},
     {"get_item_stats", py_get_item_stats, METH_VARARGS, NULL},
-    {"reveal_level", py_reveal_level, METH_NOARGS, NULL},
+    {"reveal_automap", py_reveal_automap, METH_NOARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 
@@ -271,9 +332,15 @@ PyMODINIT_FUNC PyInit_game(void) {
     tick_functions = PyList_New(0);
     PyObject *module = PyModule_Create(&game_module);
     if (!module) return NULL;
+
     if (PyType_Ready(&PyUnitType) < 0) return NULL;
     Py_INCREF(&PyUnitType);
     PyModule_AddObject(module, "Unit", (PyObject *)&PyUnitType);
+
+    if (PyType_Ready(&PyGameInfoType) < 0) return NULL;
+    Py_INCREF(&PyGameInfoType);
+    PyModule_AddObject(module, "GameInfo", (PyObject *)&PyGameInfoType);
+
     return module;
 }
 

@@ -17,6 +17,7 @@ uint32_t *mouse_y = NULL;
 uint32_t *automap_open = NULL;
 struct AutomapLayer **automap_layer = NULL;
 uint32_t *difficulty = NULL;
+struct GameInfo **game_info;
 
 PrintGameString_t PrintGameString = NULL;
 GetMouseXOffset_t GetMouseXOffset = NULL;
@@ -77,6 +78,7 @@ void Initialize() {
     automap_open = (uint32_t *)((uintptr_t)d2client + 0x11B9AC);
     automap_layer = (struct AutomapLayer **)((uintptr_t)d2client + 0x11C1C4);
     difficulty = (uint32_t *)((uintptr_t)d2client + 0x11C390);
+    game_info = (struct GameInfo **)((uintptr_t)d2client + 0x11B980);
 
     /* functions */
     PrintGameString = (PrintGameString_t)((uintptr_t)d2client + 0x7D850);

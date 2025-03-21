@@ -23,10 +23,31 @@ class Unit:
     def id(self) -> int:
         return self.internal_unit.id
 
+#####################################
+## game                            ##
+#####################################
+class Game:
+    def __init__(self, game_info: game.GameInfo):
+        self.internal_game_info = game_info
+
+    @property
+    def ready(self) -> bool:
+        return not not game.is_game_ready()
+
+    @property
+    def name(self) -> str:
+        return self.internal_game_info.name
 
 #####################################
 ## characters                      ##
 #####################################
+class Act(IntEnum):
+    I = 0x00
+    II = 0x01
+    III = 0x02
+    IV = 0x03
+    V = 0x04
+
 class Character(Unit):
     @property
     def position(self) -> Position:
@@ -34,6 +55,10 @@ class Character(Unit):
             self.internal_unit.pPathxPos,
             self.internal_unit.pPathyPos
         )
+
+    @property
+    def act(self) -> Act:
+        return Act(self.internal_unit.dwAct)
 
 #####################################
 ## items                           ##
@@ -1374,15 +1399,16 @@ class Item(Unit):
 
         return [Stat(StatType(stat_index), value) for stat_index, _, value in raw_stats]
 
-
 #####################################
 ## functions                       ##
 #####################################
-def pick_up(item: Item) -> None:
-    game.pick_up(item.id, 4)
+def get_game() -> Optional[Game]:
+    internal = game.get_game_info()
+    return Game(internal) if internal else None
 
-def get_player() -> Character:
-    return Character(game.get_player_unit())
+def get_player() -> Optional[Character]:
+    internal = game.get_player_unit()
+    return Character(internal) if internal else None
 
 def get_all_items() -> list[Item]:
     results: list[Item] = []
@@ -1393,9 +1419,11 @@ def get_all_items() -> list[Item]:
 
     return results
 
-def reveal_level() -> None:
-    game.reveal_level()
+def reveal_automap() -> None:
+    game.reveal_automap()
 
+def pick_up(item: Item) -> None:
+    game.pick_up(item.id, 4)
 
 #####################################
 ## helpers                         ##
