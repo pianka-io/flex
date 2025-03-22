@@ -17,7 +17,9 @@ uint32_t *mouse_y = NULL;
 uint32_t *automap_open = NULL;
 struct AutomapLayer **automap_layer = NULL;
 uint32_t *difficulty = NULL;
-struct GameInfo **game_info;
+struct GameInfo **game_info = NULL;
+uint32_t *automap_divisor = NULL;
+POINT *automap_offset = NULL;
 
 PrintGameString_t PrintGameString = NULL;
 GetMouseXOffset_t GetMouseXOffset = NULL;
@@ -49,6 +51,10 @@ GetDifficulty_t GetDifficulty = NULL;
 InitLevel_t InitLevel = NULL;
 UnloadAct_t UnloadAct = NULL;
 GetLevelEx_t GetLevelEx = NULL;
+DrawLine_t DrawLine = NULL;
+AbsScreenToMap_t AbsScreenToMap = NULL;
+MapToAbsScreen_t MapToAbsScreen = NULL;
+GetAutomapSize_t GetAutomapSize = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -79,6 +85,8 @@ void Initialize() {
     automap_layer = (struct AutomapLayer **)((uintptr_t)d2client + 0x11C1C4);
     difficulty = (uint32_t *)((uintptr_t)d2client + 0x11C390);
     game_info = (struct GameInfo **)((uintptr_t)d2client + 0x11B980);
+    automap_divisor = (uint32_t *)((uintptr_t)d2client + 0xF16B0);
+    automap_offset = (POINT *)((uintptr_t)d2client + 0x11C1F8);
 
     /* functions */
     PrintGameString = (PrintGameString_t)((uintptr_t)d2client + 0x7D850);
@@ -101,8 +109,8 @@ void Initialize() {
     RevealAutomapRoom = (RevealAutomapRoom_t)((uintptr_t)d2client + 0x62580);
     InitAutomapLayer_I = (InitAutomapLayer_I_t)((uintptr_t)d2client + 0x62710);
     GetLayer = (GetLayer_t)((uintptr_t)d2common + 0x6CB20);
-    AddRoomData = (AddRoomData_t)((uintptr_t)d2common + 0x3CCA0); // 0x3CCA0
-    RemoveRoomData = (RemoveRoomData_t)((uintptr_t)d2common + 0x3CBE0); // 0x3CBE0
+    AddRoomData = (AddRoomData_t)((uintptr_t)d2common + 0x3CCA0);
+    RemoveRoomData = (RemoveRoomData_t)((uintptr_t)d2common + 0x3CBE0);
     GetObjectText = (GetObjectText_t)((uintptr_t)d2common + 0x3E980);
     NewAutomapCell = (NewAutomapCell_t)((uintptr_t)d2client + 0x5F6B0);
     AddAutomapCell = (AddAutomapCell_t)((uintptr_t)d2client + 0x61320);
@@ -111,6 +119,10 @@ void Initialize() {
     InitLevel = (InitLevel_t)((uintptr_t)d2common + 0x2E360);
     UnloadAct = (UnloadAct_t)((uintptr_t)d2common + 0x3C990);
     GetLevelEx = (GetLevelEx_t)((uintptr_t)d2common + 0x2D9B0);
+    DrawLine = (DrawLine_t)((uintptr_t)d2gfx + 0xB9C0);
+    AbsScreenToMap = (AbsScreenToMap_t)((uintptr_t)d2common + 0x3D8E0);
+    MapToAbsScreen = (MapToAbsScreen_t)((uintptr_t)d2common + 0x3DB70);
+    GetAutomapSize = (GetAutomapSize_t)((uintptr_t)d2client + 0x5F080);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;
@@ -175,11 +187,8 @@ struct AutomapLayer *init_layer(uint32_t level) {
 }
 
 struct Level *get_level(struct Act* pAct, uint32_t level) {
-	for(struct Level* pLevel = pAct->pMisc->pLevelFirst; pLevel; pLevel = pLevel->pNextLevel)
+	for (struct Level* pLevel = pAct->pMisc->pLevelFirst; pLevel; pLevel = pLevel->pNextLevel)
 	{
-		if (!pLevel)
-			break;
-
 		if (pLevel->dwLevelNo == level && pLevel->dwPosX > 0)
 			return pLevel;
 	}
@@ -196,7 +205,6 @@ void reveal_act(uint32_t act) {
 	if (!pAct || !pAct->pMisc)
 		return;
 
-	// Iterate every level for the given act.
 	for (int level = actIds[act - 1]; level < actIds[act]; level++) {
 		struct Level* pLevel = get_level(pAct, level);
 		if (!pLevel)

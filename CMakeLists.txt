@@ -17,9 +17,11 @@ endif()
 add_library(flexlib SHARED
     library.c
     api/api.c
-    utilities/log.c
     diablo/diablo.c
+    diablo/drawing.c
     diablo/hooks.c
+    utilities/list.c
+    utilities/log.c
 )
 
 target_include_directories(flexlib PRIVATE ${Python3_INCLUDE_DIR})

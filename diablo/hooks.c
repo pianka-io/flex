@@ -8,6 +8,8 @@
 #include "../utilities/log.h"
 #include "hooks.h"
 #include "diablo.h"
+#include "drawing.h"
+#include "../utilities/list.h"
 
 #define INST_INT3	0xCC
 #define INST_CALL	0xE8
@@ -27,7 +29,7 @@ uint8_t WriteBytes(void *addr, void *data, uint32_t len) {
 }
 
 void InterceptLocalCode(uint8_t bInst, uint32_t pAddr, uint32_t pFunc, uint32_t dwLen) {
-    uint8_t *bCode = (uint8_t *)malloc(dwLen);
+    uint8_t *bCode = malloc(dwLen);
     if (!bCode) return;
 
     memset(bCode, 0x90, dwLen);
@@ -47,7 +49,7 @@ void PatchJmp(uint32_t dwAddr, uint32_t dwFunc, uint32_t dwLen)
 
 wchar_t* AnsiToUnicode(const char* str) {
     int len = MultiByteToWideChar(CP_ACP, 0, str, -1, NULL, 0);
-    wchar_t* buf = (wchar_t*)malloc(len * sizeof(wchar_t));
+    wchar_t* buf = malloc(len * sizeof(wchar_t));
     if (buf) {
         MultiByteToWideChar(CP_ACP, 0, str, -1, buf, len);
     }
@@ -312,11 +314,42 @@ void GameDraw() {
     DrawLogo();
 }
 
+void GameAutomapDraw() {
+    if (plugins == NULL) return;
+
+    EnterCriticalSection(&plugins_lock);
+    struct List *plugin_node = plugins;
+
+    while (plugin_node) {
+        if (plugin_node->data == NULL) {
+            plugin_node = plugin_node->next;
+            continue;
+        }
+
+        struct Plugin *plugin = plugin_node->data;
+        struct List *element = plugin->automap_elements;
+
+        while (element) {
+            if (element->data == NULL) {
+                element = element->next;
+                continue;
+            }
+
+            draw_automap(element->data);
+            element = element->next;
+        }
+
+        plugin_node = plugin_node->next;
+    }
+
+    LeaveCriticalSection(&plugins_lock);
+}
+
 void __declspec(naked) GameDraw_Interception()
 {
     __asm
     {
-        call GameDraw;
+        call GameDraw
         pop esi
         pop ebx
         pop ecx
@@ -324,7 +357,21 @@ void __declspec(naked) GameDraw_Interception()
     }
 }
 
+void __declspec(naked) GameAutomapDraw_Interception()
+{
+    __asm
+    {
+        push eax
+        call GameAutomapDraw
+        pop eax
+        pop edi
+        pop esi
+        ret
+    }
+}
+
 void hook() {
     HMODULE d2client = GetModuleHandleA("D2Client.dll");
     PatchJmp((uintptr_t)d2client + 0xC3DB4, GameDraw_Interception, 6);
+    PatchJmp((uintptr_t)d2client + 0x626C9, GameAutomapDraw_Interception, 5);
 }

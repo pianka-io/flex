@@ -5,6 +5,10 @@
 #include "api/api.h"
 #include "utilities/log.h"
 #include "diablo/diablo.h"
+#include "utilities/list.h"
+
+struct List *plugins = NULL;
+CRITICAL_SECTION plugins_lock;
 
 void print_art() {
     printf("________/\\\\\\\\\\__/\\\\\\\\\\\\_________________________________        \n");
@@ -29,6 +33,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
 
     print_art();
     write_log("INF", "version " FLEX_VERSION " by pianka");
+    InitializeCriticalSection(&plugins_lock);
 
     if (PyImport_AppendInittab("game", PyInit_game) == -1) {
         write_log("ERR", "Failed to register Python module 'game'");
@@ -46,6 +51,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     if (hFind == INVALID_HANDLE_VALUE) {
         write_log("ERR", "No Python scripts found in scripts/ directory.");
     } else {
+        EnterCriticalSection(&plugins_lock);
         do {
             if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
                 if (strcmp(findData.cFileName, "flex.py") == 0) {
@@ -64,17 +70,21 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
                     PyErr_Print();
                     write_log("ERR", "Failed to load Python script: %s", findData.cFileName);
                 } else {
+                    struct Plugin *plugin = malloc(sizeof(struct Plugin));
+                    plugin->automap_elements = NULL;
+                    list_insert(&plugins, plugin);
                     write_log("INF", "Loaded Python script: %s", findData.cFileName);
                 }
                 Py_XDECREF(module);
             }
         } while (FindNextFileA(hFind, &findData));
         FindClose(hFind);
+        LeaveCriticalSection(&plugins_lock);
     }
 
     while (1) {
-        python_tick();
-        Sleep(16);
+        flex_loop();
+        automap_loop();
     }
 
     Py_Finalize();

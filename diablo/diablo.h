@@ -16,6 +16,8 @@ extern uint32_t *mouse_y;
 extern uint32_t *automap_open;
 extern struct AutomapLayer **automap_layer;
 extern struct GameInfo **game_info;
+extern uint32_t *automap_divisor;
+extern POINT *automap_offset;
 
 /* prototypes */
 typedef void(__stdcall *PrintGameString_t)(wchar_t *wMessage, int nColor);
@@ -48,6 +50,10 @@ typedef uint8_t(__stdcall *GetDifficulty_t)(void);
 typedef void(__stdcall *InitLevel_t)(struct Level *pLevel);
 typedef void(__stdcall *UnloadAct_t)(struct Act *pAct);
 typedef struct Level *(__fastcall *GetLevelEx_t)(struct ActMisc *pMisc, uint32_t dwLevelNo);
+typedef void(__stdcall *DrawLine_t)(uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uint32_t color, uint32_t unk);
+typedef void(__stdcall *AbsScreenToMap_t)(long *pX, long *pY);
+typedef void(__stdcall *MapToAbsScreen_t)(long *pX, long *pY);
+typedef uint32_t(__stdcall *GetAutomapSize_t)(void);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -80,6 +86,10 @@ extern GetDifficulty_t GetDifficulty;
 extern InitLevel_t InitLevel;
 extern UnloadAct_t UnloadAct;
 extern GetLevelEx_t GetLevelEx;
+extern DrawLine_t DrawLine;
+extern AbsScreenToMap_t AbsScreenToMap;
+extern MapToAbsScreen_t MapToAbsScreen;
+extern GetAutomapSize_t GetAutomapSize;
 
 /* tables */
 extern struct UnitAny **PlayerTable;

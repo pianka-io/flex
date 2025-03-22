@@ -5,10 +5,16 @@
 #else
 #include <python.h>
 #endif
+
 #include <structmember.h>
+#include "../library.h"
 #include "../diablo/diablo.h"
+#include "../diablo/drawing.h"
+#include "../utilities/list.h"
 #include "../utilities/log.h"
 #include "../api/api.h"
+
+#include <windows.h>
 
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     PyUnit *self;
@@ -119,9 +125,10 @@ static PyObject *py_write_log(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-static PyObject *tick_functions = NULL;
+static PyObject *flex_loop_functions = NULL;
+static PyObject *draw_automap_functions = NULL;
 
-static PyObject *py_register_tick(PyObject *self, PyObject *args) {
+static PyObject *py_register_flex_loop(PyObject *self, PyObject *args) {
     PyObject *callback;
     if (!PyArg_ParseTuple(args, "O", &callback)) {
         return NULL;
@@ -130,12 +137,25 @@ static PyObject *py_register_tick(PyObject *self, PyObject *args) {
         PyErr_SetString(PyExc_TypeError, "Argument must be callable");
         return NULL;
     }
-    PyList_Append(tick_functions, callback);
+    PyList_Append(flex_loop_functions, callback);
     Py_RETURN_NONE;
 }
 
-void python_tick(void) {
-    if (!tick_functions) return;
+static PyObject *py_register_draw_automap_loop(PyObject *self, PyObject *args) {
+    PyObject *callback;
+    if (!PyArg_ParseTuple(args, "O", &callback)) {
+        return NULL;
+    }
+    if (!PyCallable_Check(callback)) {
+        PyErr_SetString(PyExc_TypeError, "Argument must be callable");
+        return NULL;
+    }
+    PyList_Append(draw_automap_functions, callback);
+    Py_RETURN_NONE;
+}
+
+void flex_loop(void) {
+    if (!flex_loop_functions) return;
 
     PyGILState_STATE gstate = PyGILState_Ensure();
     PyThreadState *tstate = PyGILState_GetThisThreadState();
@@ -147,10 +167,10 @@ void python_tick(void) {
         return;
     }
 
-    Py_ssize_t size = PyList_Size(tick_functions);
+    Py_ssize_t size = PyList_Size(flex_loop_functions);
 
     for (Py_ssize_t i = 0; i < size; i++) {
-        PyObject *func = PyList_GetItem(tick_functions, i);
+        PyObject *func = PyList_GetItem(flex_loop_functions, i);
         if (func && PyCallable_Check(func)) {
             PyObject *result = PyObject_CallObject(func, NULL);
             if (!result) {
@@ -162,6 +182,111 @@ void python_tick(void) {
         }
     }
 
+    PyGILState_Release(gstate);
+}
+
+void automap_loop(void) {
+    if (!draw_automap_functions) return;
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    PyThreadState *tstate = PyGILState_GetThisThreadState();
+
+    if (!tstate || PyErr_Occurred()) {
+        PyErr_Print();
+        write_log("ERR", "Python thread state is invalid in automap_loop().");
+        PyGILState_Release(gstate);
+        return;
+    }
+
+    Py_ssize_t num_funcs = PyList_Size(draw_automap_functions);
+    EnterCriticalSection(&plugins_lock);
+    struct List *plugin_node = plugins;
+
+    while (plugin_node) {
+        struct Plugin *plugin = plugin_node->data;
+        struct List *new_list = NULL;
+
+        for (Py_ssize_t i = 0; i < num_funcs; ++i) {
+            PyObject *func = PyList_GetItem(draw_automap_functions, i);
+            if (func && PyCallable_Check(func)) {
+                PyObject *result = PyObject_CallObject(func, NULL);
+                if (!result) {
+                    PyErr_Print();
+                    write_log("ERR", "Automap function call failed.");
+                    continue;
+                }
+
+                if (PyList_Check(result)) {
+                    Py_ssize_t n = PyList_Size(result);
+                    for (Py_ssize_t j = 0; j < n; ++j) {
+                        PyObject *item = PyList_GetItem(result, j);
+                        if (!item || !PyObject_HasAttrString(item, "_to_dict")) continue;
+
+                        PyObject *dict = PyObject_CallMethod(item, "_to_dict", NULL);
+                        if (!dict || !PyDict_Check(dict)) {
+                            Py_XDECREF(dict);
+                            continue;
+                        }
+
+                        struct Element *el = malloc(sizeof(struct Element));
+                        if (!el) {
+                            Py_DECREF(dict);
+                            continue;
+                        }
+
+                        memset(el, 0, sizeof(struct Element));
+
+                        PyObject *type_obj = PyObject_GetAttrString(item, "__class__");
+                        if (type_obj) {
+                            PyObject *name = PyObject_GetAttrString(type_obj, "__name__");
+                            if (PyUnicode_Check(name)) {
+                                if (PyUnicode_CompareWithASCIIString(name, "TextElement") == 0) el->type = TEXT_ELEMENT;
+                                else if (PyUnicode_CompareWithASCIIString(name, "LineElement") == 0) el->type = LINE_ELEMENT;
+                                else if (PyUnicode_CompareWithASCIIString(name, "CrossElement") == 0) el->type = CROSS_ELEMENT;
+                                else el->type = 0xFF;
+                            }
+                            Py_XDECREF(name);
+                        }
+                        Py_XDECREF(type_obj);
+
+                        PyObject *text = PyDict_GetItemString(dict, "text");
+                        if (text && PyUnicode_Check(text)) {
+                            strncpy(el->text, PyUnicode_AsUTF8(text), sizeof(el->text) - 1);
+                            el->text[sizeof(el->text) - 1] = '\0';
+                        }
+
+                        PyObject *color = PyDict_GetItemString(dict, "color");
+                        if (color && PyLong_Check(color)) {
+                            el->color = (uint8_t)PyLong_AsLong(color);
+                        }
+
+                        PyObject *x1 = PyDict_GetItemString(dict, "x1");
+                        PyObject *y1 = PyDict_GetItemString(dict, "y1");
+                        PyObject *x2 = PyDict_GetItemString(dict, "x2");
+                        PyObject *y2 = PyDict_GetItemString(dict, "y2");
+
+                        if (x1 && PyLong_Check(x1)) el->x1 = (uint32_t)PyLong_AsUnsignedLong(x1);
+                        if (y1 && PyLong_Check(y1)) el->y1 = (uint32_t)PyLong_AsUnsignedLong(y1);
+                        if (x2 && PyLong_Check(x2)) el->x2 = (uint32_t)PyLong_AsUnsignedLong(x2);
+                        if (y2 && PyLong_Check(y2)) el->y2 = (uint32_t)PyLong_AsUnsignedLong(y2);
+
+                        list_insert(&new_list, el);
+                        Py_DECREF(dict);
+                    }
+                }
+                Py_DECREF(result);
+            }
+        }
+
+        if (plugin->automap_elements) {
+            list_destroy(&plugin->automap_elements);
+        }
+
+        plugin->automap_elements = new_list;
+        plugin_node = plugin_node->next;
+    }
+
+    LeaveCriticalSection(&plugins_lock);
     PyGILState_Release(gstate);
 }
 
@@ -317,7 +442,8 @@ static PyMethodDef GameMethods[] = {
     {"get_item_table", py_get_item_table, METH_NOARGS, NULL},
     {"pick_up", py_interact, METH_VARARGS, NULL},
     {"write_log", py_write_log, METH_VARARGS, NULL},
-    {"register_tick", py_register_tick, METH_VARARGS, NULL},
+    {"register_flex_loop", py_register_flex_loop, METH_VARARGS, NULL},
+    {"register_draw_automap_loop", py_register_draw_automap_loop, METH_VARARGS, NULL},
     {"get_item_code", py_get_item_code, METH_VARARGS, NULL},
     {"get_item_stats", py_get_item_stats, METH_VARARGS, NULL},
     {"reveal_automap", py_reveal_automap, METH_NOARGS, NULL},
@@ -329,7 +455,8 @@ static struct PyModuleDef game_module = {
 };
 
 PyMODINIT_FUNC PyInit_game(void) {
-    tick_functions = PyList_New(0);
+    flex_loop_functions = PyList_New(0);
+    draw_automap_functions = PyList_New(0);
     PyObject *module = PyModule_Create(&game_module);
     if (!module) return NULL;
 

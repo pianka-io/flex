@@ -1,5 +1,5 @@
 import math
-from typing import Optional
+from typing import Optional, TypeAlias
 
 import game
 from dataclasses import dataclass
@@ -1400,6 +1400,86 @@ class Item(Unit):
         return [Stat(StatType(stat_index), value) for stat_index, _, value in raw_stats]
 
 #####################################
+## drawing                         ##
+#####################################
+class TextColor(IntEnum):
+    Disabled = -1
+    White = 0
+    Red = 1
+    Green = 2
+    Blue = 3
+    Gold = 4
+    Gray = 5
+    Black = 6
+    Tan = 7
+    Orange = 8
+    Yellow = 9
+    DarkGreen = 10
+    Purple = 11
+    Silver = 15
+
+PaletteColor: TypeAlias = int  # 1 byte (0-255)
+
+@dataclass
+class Element:
+    def _to_dict(self) -> dict[str, any]:
+        return {
+            "text": "",
+            "color": 0,
+            "x1": 0,
+            "y1": 0,
+            "x2": 0,
+            "y2": 0,
+        }
+
+@dataclass
+class TextElement(Element):
+    text: str
+    color: TextColor
+    position: Position
+
+    def _to_dict(self) -> dict[str, any]:
+        return {
+            "text": self.text,
+            "color": self.color.value,
+            "x1": self.position.x,
+            "y1": self.position.y,
+            "x2": 0,
+            "y2": 0,
+        }
+
+@dataclass
+class LineElement(Element):
+    begin: Position
+    end: Position
+    color: PaletteColor
+
+    def _to_dict(self) -> dict[str, any]:
+        return {
+            "text": "",
+            "color": self.color,
+            "x1": self.begin.x,
+            "y1": self.begin.y,
+            "x2": self.end.x,
+            "y2": self.end.y,
+        }
+
+@dataclass
+class CrossElement(Element):
+    color: PaletteColor
+    position: Position
+
+    def _to_dict(self) -> dict[str, any]:
+        return {
+            "text": "",
+            "color": self.color,
+            "x1": self.position.x,
+            "y1": self.position.y,
+            "x2": 0,
+            "y2": 0,
+        }
+
+#####################################
 ## functions                       ##
 #####################################
 def get_game() -> Optional[Game]:
@@ -1430,6 +1510,13 @@ def pick_up(item: Item) -> None:
 #####################################
 class LoopType(StrEnum):
     FLEX = "FLEX"
+    DRAW_AUTOMAP = "DRAW_AUTOMAP"
+
+def log(message: str):
+    write_log("INF", message)
+
+def debug(message: str):
+    write_log("DBG", message)
 
 def write_log(level: str, message: str):
     game.write_log(level, message)
@@ -1438,7 +1525,9 @@ def loop(type: LoopType):
     def tick(func):
         match type:
             case LoopType.FLEX:
-                game.register_tick(func)
+                game.register_flex_loop(func)
+            case LoopType.DRAW_AUTOMAP:
+                game.register_draw_automap_loop(func)
             case _:
                 write_log("WRN", f"Unknown loop type {type} on {func.__name__}")
         def wrapper():

@@ -35,9 +35,9 @@ static PyObject *py_get_player_unit(PyObject *self, PyObject *args);
 static PyObject *py_get_item_table(PyObject *self, PyObject *args);
 static PyObject *py_interact(PyObject *self, PyObject *args);
 static PyObject *py_write_log(PyObject *self, PyObject *args);
-static PyObject *py_register_tick(PyObject *self, PyObject *args);
 
-void python_tick(void);
+void flex_loop(void);
+void automap_loop(void);
 PyMODINIT_FUNC PyInit_game(void);
 void init_python(void);
 
