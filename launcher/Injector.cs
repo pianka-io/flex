@@ -3,16 +3,46 @@ using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
+using launcher;
 
 public static class Injector
 {
     public static Process Launch(string diablo2Folder, string flexFolder, string arguments)
     {
+        Kernel32.SetErrorMode(Kernel32.ErrorModes.SEM_NOGPFAULTERRORBOX);
         PrepareFlex(diablo2Folder, flexFolder);
-        var process = StartProcessWithCapture(Path.Combine(diablo2Folder, "Game.exe"), arguments);
-        Thread.Sleep(2000);
-        InjectAll(process, flexFolder);
+        // var process = StartProcessWithCapture(Path.Combine(diablo2Folder, "Game.exe"), arguments);
+        // Thread.Sleep(2000);
+        // InjectAll(process, flexFolder);
+        
+        var python = Path.Combine(flexFolder, "python313_d.dll");
+        var flexlib = Path.Combine(flexFolder, "flexlib.dll");
+        
+        EnableDebugPrivilege();
+        // Inject(process, python);
+        // Inject(process, flexlib);
+
+        var game = Path.Combine(diablo2Folder, "Game.exe");
+        ProcessStartInfo startInfo = new ProcessStartInfo(game)
+        {
+            // FileName = game,
+            Arguments = arguments,
+            UseShellExecute = false,
+            // RedirectStandardOutput = true,
+            // RedirectStandardError = true,
+            WorkingDirectory = Path.GetDirectoryName(game),
+            // CreateNoWindow = false,
+        };
+        var process = new Process
+        {
+            StartInfo = startInfo
+        };
+        process = Kernel32.StartSuspended(process, startInfo);
+        // Kernel32.LoadRemoteLibrary(process, d2m);
+        Kernel32.Resume(process);
         process.WaitForInputIdle();
+        Kernel32.LoadRemoteLibrary(process, python);
+        Kernel32.LoadRemoteLibrary(process, flexlib);
         return process;
     }
 

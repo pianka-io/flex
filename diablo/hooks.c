@@ -11,6 +11,7 @@
 #include "drawing.h"
 #include "../utilities/list.h"
 
+#define CODE_PAGE   1252
 #define INST_INT3	0xCC
 #define INST_CALL	0xE8
 #define INST_NOP	0x90
@@ -53,6 +54,20 @@ wchar_t* AnsiToUnicode(const char* str) {
     if (buf) {
         MultiByteToWideChar(CP_ACP, 0, str, -1, buf, len);
     }
+    return buf;
+}
+
+char* UnicodeToAnsi(const wchar_t* str)
+{
+    if (!str) return NULL;
+
+    int len = WideCharToMultiByte(CP_ACP, 0, str, -1, NULL, 0, "?", NULL);
+    if (len <= 0) return NULL;
+
+    char* buf = malloc(len);  // len includes null terminator
+    if (!buf) return NULL;
+
+    WideCharToMultiByte(CP_ACP, 0, str, -1, buf, len, "?", NULL);
     return buf;
 }
 

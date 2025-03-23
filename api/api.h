@@ -7,10 +7,11 @@ typedef struct {
     uint32_t id;
     uint32_t type;
     uint32_t dwTxtFileNo;
+    uint32_t dwMode;
     /* item */
     uint32_t pItemDatadwFlags;
     uint32_t pItemDatadwItemLevel;
-    PyObject *pItemDatadpOwner;
+    struct UnitAny *pItemDatadpOwner;
     uint16_t pItemPathdwPosX;
     uint16_t pItemPathdwPosY;
     uint16_t pItemDatadwQuality;
@@ -18,6 +19,13 @@ typedef struct {
     uint16_t pPathxPos;
     uint16_t pPathyPos;
     uint32_t dwAct;
+    /* monster */
+    wchar_t *pMonsterDatawName;
+    uint16_t pMonsterDatawUniqueNo;
+    uint8_t pMonsterDatafNormal;
+    uint8_t pMonsterDatafChamp;
+    uint8_t pMonsterDatafBoss;
+    uint8_t pMonsterDatafMinion;
 } PyUnit;
 
 typedef struct {

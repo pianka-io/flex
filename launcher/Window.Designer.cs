@@ -47,6 +47,7 @@ partial class Window
         txtDiabloII.Name = "txtDiabloII";
         txtDiabloII.Size = new System.Drawing.Size(231, 23);
         txtDiabloII.TabIndex = 0;
+        txtDiabloII.TextChanged += txtDiabloII_TextChanged;
         // 
         // lblDiabloII
         // 
@@ -92,6 +93,7 @@ partial class Window
         txtFlex.Name = "txtFlex";
         txtFlex.Size = new System.Drawing.Size(231, 23);
         txtFlex.TabIndex = 3;
+        txtFlex.TextChanged += txtFlex_TextChanged;
         // 
         // lblDivider
         // 
@@ -126,6 +128,7 @@ partial class Window
         txtArguments.Name = "txtArguments";
         txtArguments.Size = new System.Drawing.Size(320, 23);
         txtArguments.TabIndex = 8;
+        txtArguments.TextChanged += txtArguments_TextChanged;
         // 
         // Window
         // 

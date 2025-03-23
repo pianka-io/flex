@@ -1,9 +1,12 @@
-import math
-from typing import Optional, TypeAlias
-
 import game
+import math
+import ctypes
+from typing import Optional, TypeAlias
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
+
+UnitAnyPtr = ctypes.POINTER(ctypes.c_void_p)
+wchar_p = ctypes.c_wchar_p
 
 
 #####################################
@@ -59,6 +62,45 @@ class Character(Unit):
     @property
     def act(self) -> Act:
         return Act(self.internal_unit.dwAct)
+
+@dataclass
+class MonsterTier:
+    normal: bool
+    minion: bool
+    champion: bool
+    boss: bool
+
+class Monster(Unit):
+    @property
+    def name(self) -> str:
+        addr = self.internal_unit.pMonsterDatawName
+        if not addr:
+            return ""
+        return ctypes.wstring_at(addr)
+
+    @property
+    def type(self) -> int:
+        return self.internal_unit.dwTxtFileNo
+
+    @property
+    def mode(self) -> int:
+        return self.internal_unit.dwMode
+
+    @property
+    def position(self) -> Position:
+        return Position(
+            self.internal_unit.pPathxPos,
+            self.internal_unit.pPathyPos
+        )
+
+    @property
+    def tier(self) -> MonsterTier:
+        return MonsterTier(
+            normal = self.internal_unit.pMonsterDatafNormal,
+            minion = self.internal_unit.pMonsterDatafMinion,
+            champion = self.internal_unit.pMonsterDatafChamp,
+            boss =  self.internal_unit.pMonsterDatafBoss
+        )
 
 #####################################
 ## items                           ##
@@ -1343,11 +1385,10 @@ class ItemLocation(IntEnum):
 class Item(Unit):
     @property
     def owner(self) -> Optional[Character]:
-        pItemDatadpOwner = self.internal_unit.pItemDatadpOwner
-        if pItemDatadpOwner is None:
+        addr = self.internal_unit.pItemDatadpOwner
+        if not addr:
             return None
-        else:
-            return Character(pItemDatadpOwner)
+        return Character(game.build_player_unit_from_ptr(addr))
 
     @property
     def type(self) -> ItemType:
@@ -1499,6 +1540,25 @@ def get_all_items() -> list[Item]:
 
     return results
 
+def get_all_monsters() -> list[Monster]:
+    results: list[Monster] = []
+    for unit in game.get_monster_table():
+        if not unit or unit.id == 0:
+            continue
+        results.append(Monster(unit))
+
+    return results
+
+# TODO(pianka): this might do the same thing as get_all_monsters
+# def get_nearby_monsters() -> list[Monster]:
+#     results: list[Monster] = []
+#     for unit in game.get_nearby_monsters():
+#         if not unit or unit.id == 0:
+#             continue
+#         results.append(Monster(unit))
+#
+#     return results
+
 def reveal_automap() -> None:
     game.reveal_automap()
 
@@ -1512,8 +1572,11 @@ class LoopType(StrEnum):
     FLEX = "FLEX"
     DRAW_AUTOMAP = "DRAW_AUTOMAP"
 
-def log(message: str):
+def info(message: str):
     write_log("INF", message)
+
+def warn(message: str):
+    write_log("DBG", message)
 
 def debug(message: str):
     write_log("DBG", message)
@@ -1529,7 +1592,7 @@ def loop(type: LoopType):
             case LoopType.DRAW_AUTOMAP:
                 game.register_draw_automap_loop(func)
             case _:
-                write_log("WRN", f"Unknown loop type {type} on {func.__name__}")
+                warn(f"Unknown loop type {type} on {func.__name__}")
         def wrapper():
             func()
         return wrapper

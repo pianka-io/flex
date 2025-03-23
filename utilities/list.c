@@ -3,6 +3,10 @@
 
 void list_insert(struct List **head, void *data) {
     struct List *node = malloc(sizeof(struct List));
+    if (!node) {
+        free(data);
+        return;
+    }
     node->data = data;
     node->next = *head;
     *head = node;

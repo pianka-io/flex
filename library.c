@@ -82,6 +82,8 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
         LeaveCriticalSection(&plugins_lock);
     }
 
+    Sleep(2000);
+
     while (1) {
         flex_loop();
         automap_loop();

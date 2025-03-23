@@ -16,6 +16,8 @@
 
 #include <windows.h>
 
+#include "../diablo/hooks.h"
+
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     PyUnit *self;
     self = (PyUnit *)type->tp_alloc(type, 0);
@@ -26,10 +28,11 @@ static PyMemberDef PyUnit_members[] = {
     {"id", T_UINT, offsetof(PyUnit, id), READONLY, ""},
     {"type", T_UINT, offsetof(PyUnit, type), READONLY, ""},
     {"dwTxtFileNo", T_UINT, offsetof(PyUnit, dwTxtFileNo), READONLY, ""},
+    {"dwMode", T_UINT, offsetof(PyUnit, dwMode), READONLY, ""},
     /* item */
     {"pItemDatadwFlags", T_UINT, offsetof(PyUnit, pItemDatadwFlags), READONLY, ""},
     {"pItemDatadwItemLevel", T_UINT, offsetof(PyUnit, pItemDatadwItemLevel), READONLY, ""},
-    {"pItemDatadpOwner", T_OBJECT_EX, offsetof(PyUnit, pItemDatadpOwner), READONLY, ""},
+    {"pItemDatadpOwner", T_UINT, offsetof(PyUnit, pItemDatadpOwner), READONLY, ""},
     {"pItemPathdwPosX", T_USHORT, offsetof(PyUnit, pItemPathdwPosX), READONLY, ""},
     {"pItemPathdwPosY", T_USHORT, offsetof(PyUnit, pItemPathdwPosY), READONLY, ""},
     {"pItemDatadwQuality", T_USHORT, offsetof(PyUnit, pItemDatadwQuality), READONLY, ""},
@@ -37,6 +40,13 @@ static PyMemberDef PyUnit_members[] = {
     {"pPathxPos", T_USHORT, offsetof(PyUnit, pPathxPos), READONLY, ""},
     {"pPathyPos", T_USHORT, offsetof(PyUnit, pPathyPos), READONLY, ""},
     {"dwAct", T_UINT, offsetof(PyUnit, dwAct), READONLY, ""},
+    /* monster */
+    {"pMonsterDatawName", T_UINT, offsetof(PyUnit, pMonsterDatawName), READONLY, ""},
+    {"pMonsterDatawUniqueNo", T_USHORT, offsetof(PyUnit, pMonsterDatawUniqueNo), READONLY, ""},
+    {"pMonsterDatafNormal", T_BOOL, offsetof(PyUnit, pMonsterDatafNormal), READONLY, ""},
+    {"pMonsterDatafChamp", T_BOOL, offsetof(PyUnit, pMonsterDatafChamp), READONLY, ""},
+    {"pMonsterDatafBoss", T_BOOL, offsetof(PyUnit, pMonsterDatafBoss), READONLY, ""},
+    {"pMonsterDatafMinion", T_BOOL, offsetof(PyUnit, pMonsterDatafMinion), READONLY, ""},
     {NULL}
 };
 
@@ -80,14 +90,35 @@ static PyObject *build_item_unit(struct UnitAny *item) {
     py_unit->dwTxtFileNo = item->dwTxtFileNo;
     py_unit->pItemDatadwFlags = item->pItemData->dwFlags;
     py_unit->pItemDatadwItemLevel = item->pItemData->dwItemLevel;
-    if (item->pItemData->pOwnerInventory) {
-        py_unit->pItemDatadpOwner = build_player_unit(item->pItemData->pOwnerInventory->pOwner);
-    } else {
-        py_unit->pItemDatadpOwner = build_player_unit(NULL);
-    }
+    py_unit->pItemDatadpOwner = item->pItemData->pOwnerInventory ? item->pItemData->pOwnerInventory->pOwner : NULL;
     py_unit->pItemPathdwPosX = item->pItemPath->dwPosX;
     py_unit->pItemPathdwPosY = item->pItemPath->dwPosY;
     py_unit->pItemDatadwQuality = item->pItemData->dwQuality;
+    return (PyObject *)py_unit;
+}
+
+static PyObject *build_monster_unit(struct UnitAny *monster) {
+    if (!monster) Py_RETURN_NONE;
+
+    PyUnit *py_unit = PyObject_New(PyUnit, &PyUnitType);
+    py_unit->unit = monster;
+    py_unit->id = monster->dwUnitId;
+    py_unit->type = monster->dwType;
+    py_unit->dwMode = monster->dwMode;
+    py_unit->dwTxtFileNo = monster->dwTxtFileNo;
+    if (monster->pPath) {
+        py_unit->pPathxPos = monster->pPath->xPos;
+        py_unit->pPathyPos = monster->pPath->yPos;
+    } else {
+        py_unit->pPathxPos = 0;
+        py_unit->pPathyPos = 0;
+    }
+    py_unit->pMonsterDatawName = monster->pMonsterData ? monster->pMonsterData->wName : NULL;
+    py_unit->pMonsterDatawUniqueNo = monster->pMonsterData->wUniqueNo;
+    py_unit->pMonsterDatafNormal = (monster->pMonsterData->fNormal & 1) == 1;
+    py_unit->pMonsterDatafChamp = (monster->pMonsterData->fChamp & 1) == 1;
+    py_unit->pMonsterDatafBoss = (monster->pMonsterData->fBoss & 1) == 1;
+    py_unit->pMonsterDatafMinion = (monster->pMonsterData->fMinion & 1) == 1;
     return (PyObject *)py_unit;
 }
 
@@ -98,6 +129,36 @@ static PyObject *py_get_item_table(PyObject *self, PyObject *args) {
 
         if (unit) {
             PyObject *item = build_item_unit(unit);
+            PyList_SET_ITEM(list, i, item);
+        } else {
+            Py_INCREF(Py_None);
+            PyList_SET_ITEM(list, i, Py_None);
+        }
+    }
+    return list;
+}
+
+static PyObject *py_get_nearby_monsters(PyObject *self, PyObject *args) {
+    struct UnitAny *player = GetPlayerUnit();
+    PyObject *list = PyList_New(128);
+
+    for (struct Room1* room1 = player->pAct->pRoom1; room1; room1 = room1->pRoomNext) {
+        for (struct UnitAny* unit = room1->pUnitFirst; unit; unit = unit->pListNext) {
+            PyObject *monster = build_monster_unit(unit);
+            PyList_Append(list, monster);
+        }
+    }
+
+    return list;
+}
+
+static PyObject *py_get_monster_table(PyObject *self, PyObject *args) {
+    PyObject *list = PyList_New(128);
+    for (int i = 0; i < 128; i++) {
+        struct UnitAny *unit = MonsterTable[i];
+
+        if (unit) {
+            PyObject *item = build_monster_unit(unit);
             PyList_SET_ITEM(list, i, item);
         } else {
             Py_INCREF(Py_None);
@@ -435,11 +496,21 @@ static PyObject *py_is_game_ready(PyObject *self, PyObject *args) {
     }
 }
 
+static PyObject *py_build_player_unit_from_ptr(PyObject *self, PyObject *args) {
+    uint64_t addr;
+    if (!PyArg_ParseTuple(args, "K", &addr))
+        return NULL;
+    return build_player_unit((struct UnitAny *)addr);
+}
+
+
 static PyMethodDef GameMethods[] = {
     {"get_game_info", py_get_game_info, METH_NOARGS, NULL},
     {"is_game_ready", py_is_game_ready, METH_NOARGS, NULL},
     {"get_player_unit", py_get_player_unit, METH_NOARGS, NULL},
     {"get_item_table", py_get_item_table, METH_NOARGS, NULL},
+    {"get_monster_table", py_get_monster_table, METH_NOARGS, NULL},
+    {"get_nearby_monsters", py_get_nearby_monsters, METH_NOARGS, NULL},
     {"pick_up", py_interact, METH_VARARGS, NULL},
     {"write_log", py_write_log, METH_VARARGS, NULL},
     {"register_flex_loop", py_register_flex_loop, METH_VARARGS, NULL},
@@ -447,6 +518,7 @@ static PyMethodDef GameMethods[] = {
     {"get_item_code", py_get_item_code, METH_VARARGS, NULL},
     {"get_item_stats", py_get_item_stats, METH_VARARGS, NULL},
     {"reveal_automap", py_reveal_automap, METH_NOARGS, NULL},
+    {"build_player_unit_from_ptr", py_build_player_unit_from_ptr, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 

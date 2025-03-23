@@ -6,10 +6,13 @@ ran = False
 @loop(LoopType.FLEX)
 def tick():
     global ran
+    game = get_game()
+    if game is None: return
+    if not game.ready: return
+
     if ran:
         return
     ran = True
-    sleep(5) # probably not a great idea
     list_items()
 
 def list_items():

@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace launcher;
 
 public partial class Window : Form
@@ -7,12 +9,31 @@ public partial class Window : Form
         InitializeComponent();
     }
 
+    private Config LoadConfig()
+    {
+        var path = Path.Combine(Application.StartupPath, "flex.json");
+        var json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<Config>(json)!;
+    }
+    
+    private void SaveConfig()
+    {
+        var path = Path.Combine(Application.StartupPath, "flex.json");
+        var json = JsonSerializer.Serialize(new Config
+        {
+            DiabloII = txtDiabloII.Text,
+            Flex = txtFlex.Text,
+            Arguments = txtArguments.Text
+        });
+        File.WriteAllText(path, json);
+    }
+    
     private void Window_Load(object sender, EventArgs e)
     {
-        txtDiabloII.Text = @"C:\Users\Rick Pianka\Diablo II\Diablo II (1.13c)";
-        // txtDiabloII.Text = @"C:\Program Files (x86)\Diablo II";
-        txtFlex.Text = @"C:\Users\Rick Pianka\Code\flexlib\cmake-build-debug-visual-studio";
-        // txtFlex.Text = Path.GetDirectoryName(Application.ExecutablePath);
+        var config = LoadConfig();
+        txtDiabloII.Text = config.DiabloII;
+        txtFlex.Text = config.Flex;
+        txtArguments.Text = config.Arguments;
     }
 
     private void btnBrowseDiabloII_Click(object sender, EventArgs e)
@@ -38,5 +59,20 @@ public partial class Window : Form
         {
             txtFlex.Text = dialog.SelectedPath;
         }
+    }
+
+    private void txtDiabloII_TextChanged(object sender, EventArgs e)
+    {
+        SaveConfig();
+    }
+
+    private void txtFlex_TextChanged(object sender, EventArgs e)
+    {
+        SaveConfig();
+    }
+
+    private void txtArguments_TextChanged(object sender, EventArgs e)
+    {
+        SaveConfig();
     }
 }

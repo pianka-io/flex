@@ -35,13 +35,15 @@ void draw_automap_line(const struct Element *element) {
 }
 
 void draw_automap_cross(const struct Element *element) {
+    POINT point;
+    world_to_automap(&point, element->x1, element->y1);
     CHAR szLines[][2] = {0,-2, 4,-4, 8,-2, 4,0, 8,2, 4,4, 0,2, -4,4, -8,2, -4,0, -8,-2, -4,-4, 0,-2};
     for (int x = 0; x < 12; x++) {
         DrawLine(
-            element->x1 + szLines[x][0],
-            element->y1 + szLines[x][1],
-            element->x1 + szLines[x+1][0],
-            element->y1 + szLines[x+1][1],
+            point.x + szLines[x][0],
+            point.y + szLines[x][1],
+            point.x + szLines[x+1][0],
+            point.y + szLines[x+1][1],
             element->color, -1
         );
     }
