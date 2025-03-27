@@ -503,6 +503,16 @@ static PyObject *py_build_player_unit_from_ptr(PyObject *self, PyObject *args) {
     return build_player_unit((struct UnitAny *)addr);
 }
 
+static PyObject *py_wstring_at(PyObject *self, PyObject *args) {
+    const wchar_t *addr;
+    if (!PyArg_ParseTuple(args, "k", &addr))  // Use "k" for unsigned long (pointer-sized)
+        return NULL;
+
+    if (!addr)
+        Py_RETURN_NONE;
+
+    return PyUnicode_FromWideChar(addr, -1);
+}
 
 static PyMethodDef GameMethods[] = {
     {"get_game_info", py_get_game_info, METH_NOARGS, NULL},
@@ -519,6 +529,7 @@ static PyMethodDef GameMethods[] = {
     {"get_item_stats", py_get_item_stats, METH_VARARGS, NULL},
     {"reveal_automap", py_reveal_automap, METH_NOARGS, NULL},
     {"build_player_unit_from_ptr", py_build_player_unit_from_ptr, METH_VARARGS, NULL},
+    {"wstring_at", py_wstring_at, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 

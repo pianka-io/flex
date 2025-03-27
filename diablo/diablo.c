@@ -20,6 +20,7 @@ uint32_t *difficulty = NULL;
 struct GameInfo **game_info = NULL;
 uint32_t *automap_divisor = NULL;
 POINT *automap_offset = NULL;
+struct Control *first_control = NULL;
 
 PrintGameString_t PrintGameString = NULL;
 GetMouseXOffset_t GetMouseXOffset = NULL;
@@ -87,6 +88,7 @@ void Initialize() {
     game_info = (struct GameInfo **)((uintptr_t)d2client + 0x11B980);
     automap_divisor = (uint32_t *)((uintptr_t)d2client + 0xF16B0);
     automap_offset = (POINT *)((uintptr_t)d2client + 0x11C1F8);
+    first_control = (struct Control *)((uintptr_t)d2win + 0x214A0);
 
     /* functions */
     PrintGameString = (PrintGameString_t)((uintptr_t)d2client + 0x7D850);

@@ -3,10 +3,10 @@ project(flexlib LANGUAGES C)
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-set(Python3_ROOT_DIR "C:/Python3-32")
-set(Python3_INCLUDE_DIR "C:/Python3-32/include")
-set(Python3_LIBRARY_RELEASE "C:/Python3-32/libs/python313.lib")
-set(Python3_LIBRARY_DEBUG "C:/Python3-32/libs/python313_d.lib")
+set(Python3_ROOT_DIR "C:/Python313-32")
+set(Python3_INCLUDE_DIR "C:/Python313-32/include")
+set(Python3_LIBRARY_RELEASE "C:/Python313-32/libs/python313.lib")
+set(Python3_LIBRARY_DEBUG "C:/Python313-32/libs/python313_d.lib")
 
 find_package(Python3 3.13 REQUIRED COMPONENTS Development)
 
@@ -17,15 +17,17 @@ endif()
 add_library(flexlib SHARED
     library.c
     api/api.c
+    diablo/controls.c
     diablo/diablo.c
     diablo/drawing.c
     diablo/hooks.c
+    diablo/window.c
     utilities/list.c
     utilities/log.c
 )
 
 target_include_directories(flexlib PRIVATE ${Python3_INCLUDE_DIR})
-target_link_directories(flexlib PRIVATE "C:/Python3-32/libs")
+target_link_directories(flexlib PRIVATE "C:/Python313-32/libs")
 
 target_link_libraries(flexlib PRIVATE
     "$<$<CONFIG:Debug>:${Python3_LIBRARY_DEBUG}>"

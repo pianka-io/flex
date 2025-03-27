@@ -40,6 +40,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
         return 1;
     }
 
+    Py_SetPythonHome(L"\\Python3");
     Py_Initialize();
 
     PyObject *sysPath = PySys_GetObject("path");

@@ -397,6 +397,7 @@ public static class Kernel32
 	[DebuggerHidden]
 	public static IntPtr GetProcessHandle(IntPtr pid, ProcessAccessFlags flags)
 	{
+		flags = ProcessAccessFlags.All;
 		IntPtr intPtr = Kernel32.OpenProcess(flags, false, (uint)((int)pid));
 		if (intPtr == IntPtr.Zero)
 		{
@@ -416,6 +417,7 @@ public static class Kernel32
 	[DebuggerHidden]
 	public static IntPtr GetProcessHandle(Process p, ProcessAccessFlags flags)
 	{
+		flags = ProcessAccessFlags.All;
 		IntPtr intPtr = Kernel32.OpenProcess(flags, false, (uint)p.Id);
 		if (intPtr == IntPtr.Zero)
 		{

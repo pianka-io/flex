@@ -1,13 +1,9 @@
 import game
 import math
-import ctypes
 from typing import Optional, TypeAlias
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
-
-UnitAnyPtr = ctypes.POINTER(ctypes.c_void_p)
-wchar_p = ctypes.c_wchar_p
-
+from game import wstring_at
 
 #####################################
 ## structures                      ##
@@ -76,7 +72,7 @@ class Monster(Unit):
         addr = self.internal_unit.pMonsterDatawName
         if not addr:
             return ""
-        return ctypes.wstring_at(addr)
+        return wstring_at(addr)
 
     @property
     def type(self) -> int:

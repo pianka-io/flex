@@ -536,4 +536,49 @@ struct AutomapLayer2 {
     uint32_t nLayerNo;
 };
 
+struct ControlText
+{
+    wchar_t* wText[5];
+    uint32_t dwColor;
+    uint32_t dwAlign;
+    struct ControlText* pNext;
+};
+
+struct Control {
+    uint32_t dwType;
+    uint32_t *_1;
+    uint32_t dwDisabled;
+    uint32_t dwPosX;
+    uint32_t dwPosY;
+    uint32_t dwSizeX;
+    uint32_t dwSizeY;
+    uint32_t *_2;
+    uint32_t _3;
+    uint32_t *_4;
+    uint32_t *_5;
+    uint32_t _6;
+    uint32_t *_7;
+    uint32_t *_8;
+    uint32_t _9;
+    struct Control* pNext;
+    uint32_t _10;
+    uint32_t unkState;
+    struct ControlText* pFirstText;
+    struct ControlText* pLastText;
+    struct ControlText* pSelectedText;
+    uint32_t dwSelectEnd;
+    uint32_t dwSelectStart;
+    union {
+        struct {
+            wchar_t wText[256];
+            uint32_t dwCursorPos;
+            uint32_t dwIsCloaked;
+        };
+        struct {
+            uint32_t _12[2];
+            wchar_t wText2[256];
+        };
+    };
+};
+
 #endif
