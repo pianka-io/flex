@@ -8,10 +8,12 @@ namespace launcher
     {
         public bool IsInstalled { get; set; } = false;
         public string InstalledVersion { get; set; } = "0.0.0";
-        public string LauncherVersion { get; set; } = "0.0.1";
+        public string LauncherVersion { get; set; } = "0.0.2";
         public string InstallPath { get; set; } = "";
-
-        private static readonly string FilePath = Path.Combine(AppContext.BaseDirectory, "settings.json");
+        
+        private static readonly string FilePath = Path.Combine(
+            Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName)!,
+            "settings.json");
 
         public static Settings Load()
         {
@@ -38,6 +40,9 @@ namespace launcher
 
         public static void Save(Settings settings)
         {
+            var dir = Path.GetDirectoryName(FilePath)!;
+            Directory.CreateDirectory(dir);
+
             var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions
             {
                 WriteIndented = true

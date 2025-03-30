@@ -18,7 +18,7 @@ namespace launcher
         private Settings _settings;
         
         private int _backgroundIndex = 1;
-        private readonly int _maxBackgrounds = 3;
+        private readonly int _maxBackgrounds = 1;
 
         public MainWindow()
         {
@@ -70,7 +70,7 @@ namespace launcher
                 BackgroundImage.BeginAnimation(UIElement.OpacityProperty, fadeIn);
             };
 
-            timer.Start();
+            // timer.Start();
         }
         
         private async Task DownloadAndExtractZipAsync(string url, string extractTo, int index, int total)
@@ -314,7 +314,7 @@ namespace launcher
             WindowState = WindowState.Minimized;
         }
         
-       private async Task CheckForAndApplyUpdatesAsync(string type, string installDir)
+        private async Task CheckForAndApplyUpdatesAsync(string type, string installDir)
         {
             try
             {
@@ -341,14 +341,16 @@ namespace launcher
                 OptionsButton.Margin = new Thickness(MainButton.ActualWidth, 0, 0, 0);
                 MainButton.IsEnabled = false;
 
-                string tempDir = Path.Combine(Path.GetTempPath(), $"{type}_update");
-                Directory.CreateDirectory(tempDir);
+                string patchDir = type == "launcher"
+                    ? Path.Combine(Path.GetTempPath(), $"{type}_update")
+                    : installDir;
+                Directory.CreateDirectory(patchDir);
 
                 for (int i = 0; i < files.Count; i++)
                 {
                     string file = files[i];
                     string url = $"{baseUrl}{type}/{remoteVersion}/{file}";
-                    string targetPath = Path.Combine(tempDir, file);
+                    string targetPath = Path.Combine(patchDir, file);
 
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
@@ -378,7 +380,7 @@ namespace launcher
                     string batch = $@"
                         @echo off
                         timeout /t 1 /nobreak > nul
-                        xcopy /E /Y /I ""{tempDir}"" ""{launcherDir}""
+                        xcopy /E /Y /I ""{patchDir}"" ""{launcherDir}""
                         start """" ""{launcherExe}""
                         del ""%~f0""
                     ";
@@ -400,6 +402,5 @@ namespace launcher
                 MessageBox.Show($"Update failed for {type}: {ex}");
             }
         }
-
     }
 }
