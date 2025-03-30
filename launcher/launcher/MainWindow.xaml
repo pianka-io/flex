@@ -1,0 +1,169 @@
+﻿<Window x:Class="launcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Launcher"
+        Width="1280" Height="720"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanMinimize"
+        WindowStyle="None"
+        Background="Black"
+        Loaded="Window_Loaded"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+
+    <Window.Resources>
+        <FontFamily x:Key="DiabloFont">./Resources/#Diablo</FontFamily>
+        <Style x:Key="RedButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontFamily" Value="{StaticResource DiabloFont}"/>
+            <Setter Property="Background" Value="#7b0000"/>
+            <Setter Property="BorderBrush" Value="Black"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2a2a2a"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#444"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid>
+            <!-- Background -->
+            <Grid>
+                <Image x:Name="PreviousBackgroundImage" Stretch="Fill" Opacity="0"/>
+                <Image x:Name="BackgroundImage" Stretch="Fill" Opacity="1" Source="{Binding}" />
+            </Grid>
+
+            <!-- Top-right window controls -->
+            <Grid HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,10,0">
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource RedButtonStyle}" Content="_" Width="40" Height="30" FontFamily="{StaticResource DiabloFont}" FontSize="18" Click="Minimize_Click"/>
+                    <Button Style="{StaticResource RedButtonStyle}" Content="X" Width="40" Height="30" Margin="5,0,0,0" FontFamily="{StaticResource DiabloFont}" FontSize="18" Click="Exit_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- News list -->
+            <ItemsControl x:Name="NewsList" Margin="20,200,0,0" Width="400" VerticalAlignment="Top" HorizontalAlignment="Left">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,10">
+                            <TextBlock Text="{Binding Title}" FontFamily="{StaticResource DiabloFont}" FontSize="18" Foreground="#7b0000"/>
+                            <TextBlock Text="{Binding Date}" FontSize="14" Foreground="#cccccc" Margin="0,2,0,4"/>
+                            <TextBlock Text="{Binding Body}" TextWrapping="Wrap" FontSize="14" Foreground="#e0e0e0"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Bottom buttons -->
+            <Grid VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Margin="20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Install/Play button with progress -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="0,0,0,10">
+                    <Grid x:Name="MainButtonContainer">
+                        <Button x:Name="MainButton"
+                                Style="{StaticResource RedButtonStyle}"
+                                Content="Install Diablo II"
+                                Padding="20,0"
+                                FontSize="20"
+                                Height="50"
+                                MinWidth="180"
+                                Click="MainButton_Click"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"/>
+
+                        <ProgressBar x:Name="InstallProgressBar"
+                                     Height="50"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Value="0"
+                                     Visibility="Collapsed"
+                                     Foreground="#7b0000"
+                                     Background="#1a1a1a"
+                                     BorderBrush="Black"
+                                     BorderThickness="2"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Center"/>
+
+                        <TextBlock x:Name="InstallStatusText"
+                                   Text=""
+                                   FontFamily="{StaticResource DiabloFont}"
+                                   FontSize="16"
+                                   Foreground="White"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Center"
+                                   TextAlignment="Center"
+                                   Visibility="Collapsed"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Exit and Options on the right -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,10" >
+                    <Button x:Name="OptionsButton"
+                            Style="{StaticResource RedButtonStyle}"
+                            Content="▼"
+                            FontSize="14"
+                            Width="40"
+                            Height="50"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            Click="ShowContextMenu_Click"
+                            Visibility="Collapsed"/>
+
+                    <Button Style="{StaticResource RedButtonStyle}"
+                            Content="Exit"
+                            Height="50"
+                            Padding="20,0"
+                            FontFamily="{StaticResource DiabloFont}" FontSize="20"
+                            Click="Exit_Click"/>
+                </StackPanel>
+
+                <!-- Popup for options -->
+                <Popup x:Name="OptionsPopup"
+                       PlacementTarget="{Binding ElementName=OptionsButton}"
+                       Placement="Bottom"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       PopupAnimation="Fade">
+                    <Border Background="#1a1a1a"
+                            BorderBrush="Black"
+                            BorderThickness="2"
+                            CornerRadius="4"
+                            Padding="0"
+                            SnapsToDevicePixels="True">
+                        <StackPanel>
+                            <Button Content="Uninstall Diablo II"
+                                    Style="{StaticResource RedButtonStyle}"
+                                    Padding="20,4"
+                                    Click="Uninstall_Click"
+                                    HorizontalContentAlignment="Left"
+                                    FontSize="16"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

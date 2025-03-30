@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <Python.h>
+#include <errhandlingapi.h>
 #include "library.h"
 #include "api/api.h"
 #include "utilities/log.h"
@@ -21,30 +22,45 @@ void print_art() {
     printf("       ____\\/\\\\\\_______/\\\\\\\\\\\\\\\\\\__\\//\\\\\\\\\\\\\\\\\\\\__/\\\\\\/\\///\\\\\\_ \n");
     printf("        ____\\///_______\\/////////____\\//////////__\\///____\\///__\n");
     printf("\n");
-
-    Initialize();
 }
 
 DWORD WINAPI ConsoleThread(LPVOID lpParam) {
-    AllocConsole();
-    freopen("CONOUT$", "w", stdout);
-    freopen("CONOUT$", "w", stderr);
-    freopen("CONIN$", "r", stdin);
+    // AllocConsole();
+    // freopen("CONOUT$", "w", stdout);
+    // freopen("CONOUT$", "w", stderr);
+    // freopen("CONIN$", "r", stdin);
 
     print_art();
+    initialize_diablo();
     write_log("INF", "version " FLEX_VERSION " by pianka");
     InitializeCriticalSection(&plugins_lock);
+    write_log("DBG", "initialized plugins lock");
 
     if (PyImport_AppendInittab("game", PyInit_game) == -1) {
         write_log("ERR", "Failed to register Python module 'game'");
         return 1;
     }
 
-    Py_SetPythonHome(L"\\Python3");
+    /* set up python */
+    _putenv("PYTHONVERBOSE=1");
+    _putenv("PYTHONDEBUG=1");
+
+    wchar_t pythonHome[MAX_PATH];
+    GetCurrentDirectoryW(MAX_PATH, pythonHome);
+    wcscat_s(pythonHome, MAX_PATH, L"\\Python3");
+    Py_SetPythonHome(pythonHome);
+
+    write_log("DBG", "PYTHONHOME: %s", getenv("PYTHONHOME"));
+    write_log("DBG", "PYTHONPATH: %s", getenv("PYTHONPATH"));
+    write_log("DBG", "set python home");
+
     Py_Initialize();
+    write_log("DBG", "python initialized");
 
     PyObject *sysPath = PySys_GetObject("path");
     PyList_Append(sysPath, PyUnicode_FromString("scripts"));
+    write_log("DBG", "updated python path");
+    /* set up python */
 
     WIN32_FIND_DATAA findData;
     HANDLE hFind = FindFirstFileA(".\\scripts\\*.py", &findData);
@@ -88,6 +104,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     while (1) {
         flex_loop();
         automap_loop();
+        Sleep(16);
     }
 
     Py_Finalize();

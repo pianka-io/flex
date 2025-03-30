@@ -216,14 +216,16 @@ static PyObject *py_register_draw_automap_loop(PyObject *self, PyObject *args) {
 }
 
 void flex_loop(void) {
-    if (!flex_loop_functions) return;
+    if (!flex_loop_functions) {
+        return;
+    }
 
     PyGILState_STATE gstate = PyGILState_Ensure();
     PyThreadState *tstate = PyGILState_GetThisThreadState();
 
     if (!tstate || PyErr_Occurred()) {
         PyErr_Print();
-        write_log("ERR", "Python thread state is invalid in python_tick().");
+        write_log("ERR", "Invalid Python thread state in flex_loop");
         PyGILState_Release(gstate);
         return;
     }
@@ -236,10 +238,11 @@ void flex_loop(void) {
             PyObject *result = PyObject_CallObject(func, NULL);
             if (!result) {
                 PyErr_Print();
-                PyErr_Clear();
-                write_log("ERR", "Python tick function execution failed.");
+                write_log("ERR", "Python tick function %zd failed", i);
             }
             Py_XDECREF(result);
+        } else {
+            write_log("WRN", "flex_loop_functions[%zd] is not callable or NULL", i);
         }
     }
 
@@ -247,19 +250,22 @@ void flex_loop(void) {
 }
 
 void automap_loop(void) {
-    if (!draw_automap_functions) return;
+    if (!draw_automap_functions) {
+        return;
+    }
 
     PyGILState_STATE gstate = PyGILState_Ensure();
     PyThreadState *tstate = PyGILState_GetThisThreadState();
 
     if (!tstate || PyErr_Occurred()) {
         PyErr_Print();
-        write_log("ERR", "Python thread state is invalid in automap_loop().");
+        write_log("ERR", "Invalid Python thread state in automap_loop");
         PyGILState_Release(gstate);
         return;
     }
 
     Py_ssize_t num_funcs = PyList_Size(draw_automap_functions);
+
     EnterCriticalSection(&plugins_lock);
     struct List *plugin_node = plugins;
 
@@ -273,7 +279,7 @@ void automap_loop(void) {
                 PyObject *result = PyObject_CallObject(func, NULL);
                 if (!result) {
                     PyErr_Print();
-                    write_log("ERR", "Automap function call failed.");
+                    write_log("ERR", "Automap function %zd call failed", i);
                     continue;
                 }
 
@@ -336,6 +342,8 @@ void automap_loop(void) {
                     }
                 }
                 Py_DECREF(result);
+            } else {
+                write_log("WRN", "draw_automap_functions[%zd] is not callable or NULL", i);
             }
         }
 
@@ -474,6 +482,9 @@ static PyObject *build_game_info(struct GameInfo *game_info) {
 }
 
 static PyObject *py_get_game_info(PyObject *self, PyObject *args) {
+    if (!game_info || !*game_info) {
+        Py_RETURN_NONE;
+    }
     return build_game_info(*game_info);
 }
 
@@ -539,24 +550,28 @@ static struct PyModuleDef game_module = {
 
 PyMODINIT_FUNC PyInit_game(void) {
     flex_loop_functions = PyList_New(0);
-    draw_automap_functions = PyList_New(0);
-    PyObject *module = PyModule_Create(&game_module);
-    if (!module) return NULL;
 
-    if (PyType_Ready(&PyUnitType) < 0) return NULL;
+    draw_automap_functions = PyList_New(0);
+
+    PyObject *module = PyModule_Create(&game_module);
+    if (!module) {
+        write_log("ERR", "Failed to create game module");
+        return NULL;
+    }
+
+    if (PyType_Ready(&PyUnitType) < 0) {
+        write_log("ERR", "PyUnitType not ready");
+        return NULL;
+    }
     Py_INCREF(&PyUnitType);
     PyModule_AddObject(module, "Unit", (PyObject *)&PyUnitType);
 
-    if (PyType_Ready(&PyGameInfoType) < 0) return NULL;
+    if (PyType_Ready(&PyGameInfoType) < 0) {
+        write_log("ERR", "PyGameInfoType not ready");
+        return NULL;
+    }
     Py_INCREF(&PyGameInfoType);
     PyModule_AddObject(module, "GameInfo", (PyObject *)&PyGameInfoType);
 
     return module;
-}
-
-void init_python(void) {
-    Py_Initialize();
-    PyImport_AppendInittab("game", PyInit_game);
-    PyGILState_Ensure();
-    PyRun_SimpleString("import game");
 }

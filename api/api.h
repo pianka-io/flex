@@ -47,6 +47,5 @@ static PyObject *py_write_log(PyObject *self, PyObject *args);
 void flex_loop(void);
 void automap_loop(void);
 PyMODINIT_FUNC PyInit_game(void);
-void init_python(void);
 
 #endif

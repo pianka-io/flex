@@ -64,16 +64,46 @@ struct UnitAny **MissileTable = NULL;
 struct UnitAny **ItemTable = NULL;
 struct UnitAny **TileTable = NULL;
 
-void Initialize() {
-    HMODULE d2common = GetModuleHandleA("d2common.dll");
-    HMODULE d2client = GetModuleHandleA("d2client.dll");
-    HMODULE d2net = GetModuleHandleA("d2net.dll");
-    HMODULE d2win = GetModuleHandleA("d2win.dll");
-    HMODULE d2gfx = GetModuleHandleA("d2gfx.dll");
-    HMODULE d2cmp = GetModuleHandleA("d2cmp.dll");
-    if (!d2client) {
-        return;
-    }
+HMODULE preload_module(const char *name) {
+	HMODULE mod = GetModuleHandleA(name);
+	if (!mod) {
+		mod = LoadLibraryA(name);
+	}
+	return mod;
+}
+
+void initialize_diablo() {
+	HMODULE d2common = NULL, d2client = NULL, d2net = NULL;
+	HMODULE d2win = NULL, d2gfx = NULL, d2cmp = NULL;
+
+	int retries = 50;
+	while (retries-- > 0) {
+		d2common = preload_module("d2common.dll");
+		d2client = preload_module("d2client.dll");
+		d2net    = preload_module("d2net.dll");
+		d2win    = preload_module("d2win.dll");
+		d2gfx    = preload_module("d2gfx.dll");
+		d2cmp    = preload_module("d2cmp.dll");
+
+		if (d2common && d2client && d2net && d2win && d2gfx && d2cmp)
+			break;
+
+		Sleep(100);
+	}
+
+	if (!d2common) write_log("ERR", "d2common.dll not loaded");
+	if (!d2client) write_log("ERR", "d2client.dll not loaded");
+	if (!d2net)    write_log("ERR", "d2net.dll not loaded");
+	if (!d2win)    write_log("ERR", "d2win.dll not loaded");
+	if (!d2gfx)    write_log("ERR", "d2gfx.dll not loaded");
+	if (!d2cmp)    write_log("ERR", "d2cmp.dll not loaded");
+
+	if (!d2common || !d2client || !d2net || !d2win || !d2gfx || !d2cmp) {
+		write_log("ERR", "One or more required Diablo 2 modules not loaded. Aborting hook setup.");
+		return;
+	}
+
+	write_log("DBG", "All required Diablo 2 modules loaded.");
 
     exp_char_flag = (uint32_t *)((uintptr_t)d2client + 0x119854);
     load_act_1 = (uint32_t *)((uintptr_t)d2client + 0x62AA0);

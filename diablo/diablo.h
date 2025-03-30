@@ -101,7 +101,7 @@ extern struct UnitAny **ItemTable;
 extern struct UnitAny **TileTable;
 
 /* initialize */
-void Initialize();
+void initialize_diablo();
 
 /* helpers */
 void GetItemCodeEx(struct UnitAny* pUnit, char* szBuf);
