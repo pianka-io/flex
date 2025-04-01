@@ -16,11 +16,11 @@ class Position:
 
 class Unit:
     def __init__(self, unit: game.Unit):
-        self.internal_unit = unit
+        self._internal_unit = unit
 
     @property
     def id(self) -> int:
-        return self.internal_unit.id
+        return self._internal_unit.id
 
 #####################################
 ## game                            ##
@@ -51,13 +51,13 @@ class Character(Unit):
     @property
     def position(self) -> Position:
         return Position(
-            self.internal_unit.pPathxPos,
-            self.internal_unit.pPathyPos
+            self._internal_unit.pPathxPos,
+            self._internal_unit.pPathyPos
         )
 
     @property
     def act(self) -> Act:
-        return Act(self.internal_unit.dwAct)
+        return Act(self._internal_unit.dwAct)
 
 @dataclass
 class MonsterTier:
@@ -69,33 +69,33 @@ class MonsterTier:
 class Monster(Unit):
     @property
     def name(self) -> str:
-        addr = self.internal_unit.pMonsterDatawName
+        addr = self._internal_unit.pMonsterDatawName
         if not addr:
             return ""
         return wstring_at(addr)
 
     @property
     def type(self) -> int:
-        return self.internal_unit.dwTxtFileNo
+        return self._internal_unit.dwTxtFileNo
 
     @property
     def mode(self) -> int:
-        return self.internal_unit.dwMode
+        return self._internal_unit.dwMode
 
     @property
     def position(self) -> Position:
         return Position(
-            self.internal_unit.pPathxPos,
-            self.internal_unit.pPathyPos
+            self._internal_unit.pPathxPos,
+            self._internal_unit.pPathyPos
         )
 
     @property
     def tier(self) -> MonsterTier:
         return MonsterTier(
-            normal = self.internal_unit.pMonsterDatafNormal,
-            minion = self.internal_unit.pMonsterDatafMinion,
-            champion = self.internal_unit.pMonsterDatafChamp,
-            boss =  self.internal_unit.pMonsterDatafBoss
+            normal = self._internal_unit.pMonsterDatafNormal,
+            minion = self._internal_unit.pMonsterDatafMinion,
+            champion = self._internal_unit.pMonsterDatafChamp,
+            boss =  self._internal_unit.pMonsterDatafBoss
         )
 
 #####################################
@@ -1072,7 +1072,7 @@ class StatType(IntEnum):
     LIGHT_COLOUR = 90
     REDUCED_REQUIREMENTS = 91
     REDUCED_LEVEL_REQ = 92
-    IAS = 93
+    INCREASED_ATTACK_SPEED = 93
     REDUCED_LEVEL_REQ_PCT = 94
     LAST_BLOCK_FRAME = 95
     FASTER_RUN_WALK = 96
@@ -1381,7 +1381,7 @@ class ItemLocation(IntEnum):
 class Item(Unit):
     @property
     def owner(self) -> Optional[Character]:
-        addr = self.internal_unit.pItemDatadpOwner
+        addr = self._internal_unit.pItemDatadpOwner
         if not addr:
             return None
         return Character(game.build_player_unit_from_ptr(addr))
@@ -1389,17 +1389,17 @@ class Item(Unit):
     @property
     def type(self) -> ItemType:
         try:
-            return ItemType(game.get_item_code(self.internal_unit.dwTxtFileNo))
+            return ItemType(game.get_item_code(self._internal_unit.dwTxtFileNo))
         except:
             return ItemType.UNKNOWN
 
     @property
     def level(self) -> int:
-        return self.internal_unit.pItemDatadwItemLevel
+        return self._internal_unit.pItemDatadwItemLevel
 
     @property
     def flags(self) -> ItemFlags:
-        value: int = self.internal_unit.pItemDatadwFlags
+        value: int = self._internal_unit.pItemDatadwFlags
         def check(flag: int) -> bool:
             return (value & flag) == flag
         return ItemFlags(
@@ -1419,18 +1419,18 @@ class Item(Unit):
 
     @property
     def quality(self) -> Quality:
-        return Quality(self.internal_unit.pItemDatadwQuality)
+        return Quality(self._internal_unit.pItemDatadwQuality)
 
     @property
     def position(self) -> Position:
         return Position(
-            self.internal_unit.pItemPathdwPosX,
-            self.internal_unit.pItemPathdwPosY
+            self._internal_unit.pItemPathdwPosX,
+            self._internal_unit.pItemPathdwPosY
         )
 
     @property
     def stats(self) -> list[Stat]:
-        raw_stats = game.get_item_stats(self.internal_unit)
+        raw_stats = game.get_item_stats(self._internal_unit)
         if raw_stats is None:
             return []
 

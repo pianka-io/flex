@@ -8,12 +8,14 @@ namespace launcher
     {
         public bool IsInstalled { get; set; } = false;
         public string InstalledVersion { get; set; } = "0.0.0";
-        public string LauncherVersion { get; set; } = "0.0.2";
+        public string LauncherVersion { get; set; } = "0.0.4";
         public string InstallPath { get; set; } = "";
+        public string CommandLineArguments { get; set; } = "-3dfx";
         
         private static readonly string FilePath = Path.Combine(
             Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName)!,
-            "settings.json");
+            "settings.json"
+        );
 
         public static Settings Load()
         {

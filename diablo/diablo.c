@@ -103,7 +103,7 @@ void initialize_diablo() {
 		return;
 	}
 
-	write_log("DBG", "All required Diablo 2 modules loaded.");
+	write_log("DBG", "all diablo modules loaded");
 
     exp_char_flag = (uint32_t *)((uintptr_t)d2client + 0x119854);
     load_act_1 = (uint32_t *)((uintptr_t)d2client + 0x62AA0);

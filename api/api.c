@@ -402,19 +402,22 @@ static PyObject *py_get_item_stats(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
     }
 
-    struct StatList *statList = GetStatList(unit, NULL, 0x40);
+    struct StatList *statList = unit->pStats; //GetStatList(unit, NULL, 0x40);
     if (!statList) {
         write_log("ERR", "GetStatList returned NULL.");
         Py_RETURN_NONE;
     }
 
-    struct Stat stats[256] = {0};
-    uint32_t statCount = CopyStatList(statList, (struct Stat*)stats, 256);
+    struct Stat* stats = statList->StatVec.pStats;
+    uint32_t statCount = statList->StatVec.wCount;
 
-    if (statCount == 0) {
-        write_log("ERR", "CopyStatList returned 0 stats.");
-        Py_RETURN_NONE;
-    }
+    // struct Stat stats[256] = {0};
+    // uint32_t statCount = CopyStatList(statList, (struct Stat*)stats, 256);
+    //
+    // if (statCount == 0) {
+    //     write_log("ERR", "CopyStatList returned 0 stats.");
+    //     Py_RETURN_NONE;
+    // }
 
     PyObject *pyList = PyList_New(statCount);
     if (!pyList) {

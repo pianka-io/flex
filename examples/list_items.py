@@ -17,13 +17,13 @@ def tick():
 
 def list_items():
     for item in get_all_items():
-        write_log("INF", f"Item: {item.type.name} (ID: {item.id})")
+        debug(f"Item: {item.type.name} (ID: {item.id})")
         if item.owner is None:
-            write_log("INF", f"  No owner")
+            debug(f"  No owner")
         else:
-            write_log("INF", f"  Owner id: {item.owner.id}")
-        write_log("INF", f"  Quality: {item.quality.name}")
-        write_log("INF", f"  Level: {item.level}")
-        write_log("INF", f"  Flags: {item.flags}")
+            debug(f"  Owner id: {item.owner.id}")
+        debug(f"  Quality: {item.quality.name}")
+        debug(f"  Level: {item.level}")
+        debug(f"  Flags: {item.flags}")
         for stat in item.stats:
-            write_log("INF", f"  Stat: {stat.type.name}, Value: {stat.value}")
+            debug(f"  Stat: {stat.type.name}, Value: {stat.value}")

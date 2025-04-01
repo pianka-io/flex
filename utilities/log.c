@@ -1,11 +1,17 @@
 #include "log.h"
+#include "../library.h"
 
 #include <windows.h>
 #include <stdio.h>
 #include <time.h>
 #include <stdarg.h>
 
+//debug_mode
+
 void write_log(const char *level, const char *format, ...) {
+    if (_stricmp(level, "DBG") == 0 && !debug_mode)
+        return;
+
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
 

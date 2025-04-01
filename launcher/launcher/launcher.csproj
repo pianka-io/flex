@@ -21,6 +21,8 @@
       <Resource Include="Resources\sanctuary3.png" />
       <None Remove="Resources\sanctuary1.png" />
       <Resource Include="Resources\sanctuary1.png" />
+      <None Remove="Resources\sanctuary_text.png" />
+      <Resource Include="Resources\banner.png" />
     </ItemGroup>
 
     <ItemGroup>

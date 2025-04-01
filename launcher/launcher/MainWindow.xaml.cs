@@ -5,7 +5,6 @@ using System.Windows.Input;
 using System.Net.Http;
 using System.Text.Json;
 using System.IO.Compression;
-using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Microsoft.WindowsAPICodePack.Dialogs;
@@ -35,6 +34,27 @@ namespace launcher
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             await CheckForAndApplyUpdatesAsync("launcher", AppContext.BaseDirectory);
+            if (_settings.IsInstalled)
+                await CheckForAndApplyUpdatesAsync("diablo", _settings.InstallPath);
+            StartUpdateTimer();
+        }
+        
+        private void StartUpdateTimer()
+        {
+            var timer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMinutes(1)
+            };
+
+            timer.Tick += async (s, e) =>
+            {
+                await CheckForAndApplyUpdatesAsync("launcher", AppContext.BaseDirectory);
+
+                if (_settings.IsInstalled)
+                    await CheckForAndApplyUpdatesAsync("diablo", _settings.InstallPath);
+            };
+
+            timer.Start();
         }
         
         private BitmapImage LoadResourceImage(string fileName)
@@ -178,8 +198,8 @@ namespace launcher
                     
                     _settings.IsInstalled = true;
                     _settings.InstallPath = installDir;
-                    _settings.LauncherVersion = "0.0.2";
-                    _settings.InstalledVersion = "0.0.0";
+                    _settings.LauncherVersion = new Settings().LauncherVersion;
+                    _settings.InstalledVersion = new Settings().InstalledVersion;
                     Settings.Save(_settings);
                     
                     MainButton.Content = "Play Diablo II";
@@ -212,7 +232,7 @@ namespace launcher
 
                 var startInfo = new ProcessStartInfo(gamePath)
                 {
-                    Arguments = "-3dfx",
+                    Arguments = _settings.CommandLineArguments,
                     UseShellExecute = false,
                     WorkingDirectory = _settings.InstallPath,
                 };

@@ -10,6 +10,7 @@
 
 struct List *plugins = NULL;
 CRITICAL_SECTION plugins_lock;
+boolean debug_mode = false;
 
 void print_art() {
     printf("________/\\\\\\\\\\__/\\\\\\\\\\\\_________________________________        \n");
@@ -25,10 +26,15 @@ void print_art() {
 }
 
 DWORD WINAPI ConsoleThread(LPVOID lpParam) {
-    // AllocConsole();
-    // freopen("CONOUT$", "w", stdout);
-    // freopen("CONOUT$", "w", stderr);
-    // freopen("CONIN$", "r", stdin);
+    LPSTR command_line = GetCommandLineA();
+    BOOL debug_mode = strstr(command_line, "-debug") != NULL;
+
+    if (debug_mode) {
+        AllocConsole();
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONOUT$", "w", stderr);
+        freopen("CONIN$", "r", stdin);
+    }
 
     print_art();
     initialize_diablo();
