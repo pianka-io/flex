@@ -1,9 +1,32 @@
+from asyncio import AbstractEventLoop
+
 import game
 import math
 from typing import Optional, TypeAlias
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from game import wstring_at
+import asyncio
+import inspect
+import threading
+
+_asyncio_loop: AbstractEventLoop
+
+def start_asyncio_loop():
+    global _asyncio_loop
+    loop = asyncio.new_event_loop()
+    _asyncio_loop = loop  # Save reference
+    asyncio.set_event_loop(loop)
+
+    def run_loop():
+        try:
+            loop.run_forever()
+        finally:
+            loop.close()
+
+    t = threading.Thread(target=run_loop, name="AsyncioLoop", daemon=True)
+    t.start()
+start_asyncio_loop()
 
 #####################################
 ## structures                      ##
@@ -1574,6 +1597,9 @@ def info(message: str):
 def warn(message: str):
     write_log("DBG", message)
 
+def error(message: str):
+    write_log("ERR", message)
+
 def debug(message: str):
     write_log("DBG", message)
 
@@ -1583,19 +1609,41 @@ def print_game(color: TextColor, message: str):
 def write_log(level: str, message: str):
     game.write_log(level, message)
 
-def loop(type: LoopType):
-    def tick(func):
-        match type:
+_pending_tasks = {}
+
+def loop(loop_type):
+    def decorator(func):
+        is_async = inspect.iscoroutinefunction(func)
+
+        async def runner():
+            try:
+                if is_async:
+                    await func()
+                else:
+                    func()
+            except Exception as e:
+                print(f"[flex loop error] {e}")
+
+        def wrapped():
+            global _asyncio_loop
+            # Prevent double-running
+            if func in _pending_tasks and not _pending_tasks[func].done():
+                return
+
+            _pending_tasks[func] = asyncio.run_coroutine_threadsafe(runner(), _asyncio_loop)
+
+        # Register the wrapped function (which is always sync)
+        match loop_type:
             case LoopType.FLEX:
-                game.register_flex_loop(func)
+                game.register_flex_loop(wrapped)
             case LoopType.DRAW_AUTOMAP:
-                game.register_draw_automap_loop(func)
+                game.register_draw_automap_loop(wrapped)
             case _:
-                warn(f"Unknown loop type {type} on {func.__name__}")
-        def wrapper():
-            func()
-        return wrapper
-    return tick
+                warn(f"Unknown loop type {loop_type} on {func.__name__}")
+
+        return wrapped
+
+    return decorator
 
 def distance(begin: Position, end: Position):
     return math.sqrt((begin.x - end.x) ** 2 + (begin.y - end.y) ** 2)
