@@ -38,6 +38,16 @@ typedef struct {
     char *realm_name;
 } PyGameInfo;
 
+typedef struct {
+    PyObject_HEAD
+    uint32_t type;
+    uint32_t x;
+    uint32_t y;
+    uint32_t size_x;
+    uint32_t size_y;
+    struct Control *ptr;
+} PyControl;
+
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static PyObject *py_get_player_unit(PyObject *self, PyObject *args);
 static PyObject *py_get_item_table(PyObject *self, PyObject *args);

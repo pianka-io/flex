@@ -560,6 +560,86 @@ static PyObject *py_print_game_string(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
+static PyMemberDef PyControl_members[] = {
+    {"type", T_UINT, offsetof(PyControl, type), READONLY, ""},
+    {"x", T_UINT, offsetof(PyControl, x), READONLY, ""},
+    {"y", T_UINT, offsetof(PyControl, y), READONLY, ""},
+    {"size_x", T_UINT, offsetof(PyControl, size_x), READONLY, ""},
+    {"size_y", T_UINT, offsetof(PyControl, size_y), READONLY, ""},
+    {"ptr", T_ULONGLONG, offsetof(PyControl, ptr), READONLY, ""},
+    {NULL}
+};
+
+static PyTypeObject PyControlType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "game.Control",
+    .tp_basicsize = sizeof(PyControl),
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_members = PyControl_members,
+};
+
+static PyObject *build_control(struct Control *c) {
+    if (!c) {
+        write_log("ERR", "build_control called with NULL");
+        Py_RETURN_NONE;
+    }
+
+    write_log("DBG", "build_control: c=%p", c);
+
+    write_log("DBG", "  dwType: %u", c->dwType);
+    write_log("DBG", "  Pos: (%u, %u), Size: (%u, %u)", c->dwPosX, c->dwPosY, c->dwSizeX, c->dwSizeY);
+
+    PyControl *obj = PyObject_New(PyControl, &PyControlType);
+    if (!obj) {
+        write_log("ERR", "Failed to allocate PyControl object");
+        return NULL;
+    }
+
+    obj->type = c->dwType;
+    obj->x = c->dwPosX;
+    obj->y = c->dwPosY;
+    obj->size_x = c->dwSizeX;
+    obj->size_y = c->dwSizeY;
+    obj->ptr = c;
+
+    return (PyObject *)obj;
+}
+
+static PyObject *py_get_all_controls(PyObject *self, PyObject *args) {
+    PyObject *list = PyList_New(0);
+    struct Control *cur = *first_control;
+    int count = 0;
+    int max_controls = 500;
+
+    write_log("DBG", "Starting get_all_controls loop, first_control=%p", first_control);
+
+    while (cur && count < max_controls) {
+        write_log("DBG", "Loop %d: current control ptr = %p", count, cur);
+
+        PyObject *py_control = build_control(cur);
+        if (!py_control) {
+            write_log("ERR", "build_control returned NULL at index %d (control ptr: %p)", count, cur);
+            break;
+        }
+
+        if (PyList_Append(list, py_control) != 0) {
+            write_log("ERR", "PyList_Append failed at index %d", count);
+        }
+
+        // Py_DECREF(py_control);  // Intentionally omitted — PyList_Append steals ref
+
+        cur = cur->pNext;
+        count++;
+    }
+
+    if (count >= max_controls) {
+        write_log("WRN", "get_all_controls loop hit max limit (%d)", max_controls);
+    }
+
+    write_log("DBG", "Finished get_all_controls with %d controls", count);
+    return list;
+}
+
 static PyMethodDef GameMethods[] = {
     {"get_game_info", py_get_game_info, METH_NOARGS, NULL},
     {"is_game_ready", py_is_game_ready, METH_NOARGS, NULL},
@@ -577,6 +657,7 @@ static PyMethodDef GameMethods[] = {
     {"build_player_unit_from_ptr", py_build_player_unit_from_ptr, METH_VARARGS, NULL},
     {"wstring_at", py_wstring_at, METH_VARARGS, NULL},
     {"print_game_string", py_print_game_string, METH_VARARGS, NULL},
+    {"get_all_controls", py_get_all_controls, METH_NOARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 
@@ -608,6 +689,13 @@ PyMODINIT_FUNC PyInit_game(void) {
     }
     Py_INCREF(&PyGameInfoType);
     PyModule_AddObject(module, "GameInfo", (PyObject *)&PyGameInfoType);
+
+    if (PyType_Ready(&PyControlType) < 0) {
+        write_log("ERR", "PyControlType not ready");
+        return NULL;
+    }
+    Py_INCREF(&PyControlType);
+    PyModule_AddObject(module, "Control", (PyObject *)&PyControlType);
 
     return module;
 }

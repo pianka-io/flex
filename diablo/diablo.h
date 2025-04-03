@@ -18,7 +18,7 @@ extern struct AutomapLayer **automap_layer;
 extern struct GameInfo **game_info;
 extern uint32_t *automap_divisor;
 extern POINT *automap_offset;
-extern struct Control *first_control;
+extern struct Control **first_control;
 
 /* prototypes */
 typedef void(__stdcall *PrintGameString_t)(wchar_t *wMessage, int nColor);
