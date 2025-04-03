@@ -1577,6 +1577,9 @@ def warn(message: str):
 def debug(message: str):
     write_log("DBG", message)
 
+def print_game(color: TextColor, message: str):
+    game.print_game_string(message, color)
+
 def write_log(level: str, message: str):
     game.write_log(level, message)
 

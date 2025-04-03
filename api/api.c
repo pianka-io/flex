@@ -528,6 +528,38 @@ static PyObject *py_wstring_at(PyObject *self, PyObject *args) {
     return PyUnicode_FromWideChar(addr, -1);
 }
 
+static PyObject *py_print_game_string(PyObject *self, PyObject *args) {
+    const char *message;
+    int color;
+
+    if (!PyArg_ParseTuple(args, "si", &message, &color)) {
+        return NULL;
+    }
+
+    int len = MultiByteToWideChar(CP_UTF8, 0, message, -1, NULL, 0);
+    if (len == 0) {
+        PyErr_SetString(PyExc_ValueError, "Failed to convert message to wide string.");
+        return NULL;
+    }
+
+    wchar_t *wMessage = (wchar_t *)malloc(len * sizeof(wchar_t));
+    if (!wMessage) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    MultiByteToWideChar(CP_UTF8, 0, message, -1, wMessage, len);
+
+    if (PrintGameString) {
+        PrintGameString(wMessage, color);
+    } else {
+        write_log("ERR", "PrintGameString is NULL");
+    }
+
+    free(wMessage);
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef GameMethods[] = {
     {"get_game_info", py_get_game_info, METH_NOARGS, NULL},
     {"is_game_ready", py_is_game_ready, METH_NOARGS, NULL},
@@ -544,6 +576,7 @@ static PyMethodDef GameMethods[] = {
     {"reveal_automap", py_reveal_automap, METH_NOARGS, NULL},
     {"build_player_unit_from_ptr", py_build_player_unit_from_ptr, METH_VARARGS, NULL},
     {"wstring_at", py_wstring_at, METH_VARARGS, NULL},
+    {"print_game_string", py_print_game_string, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 
