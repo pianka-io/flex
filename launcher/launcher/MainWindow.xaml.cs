@@ -343,12 +343,15 @@ namespace launcher
                 string currentVersion = type == "diablo" ? _settings.InstalledVersion : _settings.LauncherVersion;
 
                 using var http = new HttpClient();
-                string remoteVersion = (await http.GetStringAsync($"{baseUrl}{versionFile}?ts={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}")).Trim();
+                string remoteVersion =
+                    (await http.GetStringAsync(
+                        $"{baseUrl}{versionFile}?ts={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}")).Trim();
 
                 if (remoteVersion == currentVersion)
                     return;
 
-                string listUrl = $"{baseUrl}{type}/{remoteVersion}/filelist.json?ts={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                string listUrl =
+                    $"{baseUrl}{type}/{remoteVersion}/filelist.json?ts={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
                 var fileListJson = await http.GetStringAsync(listUrl);
                 var files = JsonSerializer.Deserialize<List<string>>(fileListJson);
 
@@ -416,6 +419,10 @@ namespace launcher
 
                     Environment.Exit(0);
                 }
+            }
+            catch (HttpRequestException e)
+            {
+                // ignore
             }
             catch (Exception ex)
             {
