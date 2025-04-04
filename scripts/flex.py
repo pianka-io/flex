@@ -1,5 +1,4 @@
 from asyncio import AbstractEventLoop
-
 import game
 import math
 from typing import Optional, TypeAlias
@@ -36,6 +35,10 @@ class Position:
     x: int
     y: int
 
+@dataclass
+class Dimensions:
+    width: int
+    height: int
 
 class Unit:
     def __init__(self, unit: game.Unit):
@@ -59,6 +62,58 @@ class Game:
     @property
     def name(self) -> str:
         return self.internal_game_info.name
+
+#####################################
+## controls                        ##
+#####################################
+class Control:
+    def __init__(self, control: game.Control):
+        self.internal_control = control
+
+    @property
+    def position(self) -> Position:
+        x = self.internal_control.x
+        y = self.internal_control.y
+        return Position(x, y)
+
+    @property
+    def dimensions(self) -> Dimensions:
+        width = self.internal_control.size_x
+        height = self.internal_control.size_y
+        return Dimensions(width, height)
+
+    async def click(self):
+        x = self.internal_control.x
+        y = self.internal_control.y
+        width = self.internal_control.size_x
+        height = self.internal_control.size_y
+        click_x = int(x + (width / 2))
+        click_y = int(y - (height / 2))
+        await mouse_click(MouseButton.LEFT, Position(click_x, click_y))
+
+class Controls:
+    @classmethod
+    def battle_net(cls) -> Optional[Control]:
+        controls = get_all_controls()
+        for control in controls:
+            info(str(control.position))
+            info(str(control.dimensions))
+            if control.position == Position(264, 366) and control.dimensions == Dimensions(272, 35):
+                return control
+        return None
+
+class MouseButton(IntEnum):
+    LEFT = 0
+    RIGHT = 1
+
+class ButtonDirection(IntEnum):
+    UP = 0
+    DOWN = 1
+
+async def mouse_click(button: MouseButton, position: Position):
+    game.mouse_click(position.x, position.y, int(button), ButtonDirection.DOWN)
+    await pause(100)
+    game.mouse_click(position.x, position.y, int(button), ButtonDirection.UP)
 
 #####################################
 ## characters                      ##
@@ -1550,13 +1605,18 @@ def get_player() -> Optional[Character]:
     internal = game.get_player_unit()
     return Character(internal) if internal else None
 
+def get_all_controls() -> list[Control]:
+    results: list[Control] = []
+    for control in game.get_all_controls():
+        results.append(Control(control))
+    return results
+
 def get_all_items() -> list[Item]:
     results: list[Item] = []
     for unit in game.get_item_table():
         if not unit or unit.id == 0:
             continue
         results.append(Item(unit))
-
     return results
 
 def get_all_monsters() -> list[Monster]:
@@ -1565,18 +1625,7 @@ def get_all_monsters() -> list[Monster]:
         if not unit or unit.id == 0:
             continue
         results.append(Monster(unit))
-
     return results
-
-# TODO(pianka): this might do the same thing as get_all_monsters
-# def get_nearby_monsters() -> list[Monster]:
-#     results: list[Monster] = []
-#     for unit in game.get_nearby_monsters():
-#         if not unit or unit.id == 0:
-#             continue
-#         results.append(Monster(unit))
-#
-#     return results
 
 def reveal_automap() -> None:
     game.reveal_automap()
@@ -1587,15 +1636,11 @@ def pick_up(item: Item) -> None:
 #####################################
 ## helpers                         ##
 #####################################
-class LoopType(StrEnum):
-    FLEX = "FLEX"
-    DRAW_AUTOMAP = "DRAW_AUTOMAP"
-
 def info(message: str):
     write_log("INF", message)
 
 def warn(message: str):
-    write_log("DBG", message)
+    write_log("WRN", message)
 
 def error(message: str):
     write_log("ERR", message)
@@ -1609,8 +1654,14 @@ def print_game(color: TextColor, message: str):
 def write_log(level: str, message: str):
     game.write_log(level, message)
 
-_pending_tasks = {}
+def distance(begin: Position, end: Position):
+    return math.sqrt((begin.x - end.x) ** 2 + (begin.y - end.y) ** 2)
 
+class LoopType(StrEnum):
+    FLEX = "FLEX"
+    DRAW_AUTOMAP = "DRAW_AUTOMAP"
+
+_pending_tasks = {}
 def loop(loop_type):
     def decorator(func):
         is_async = inspect.iscoroutinefunction(func)
@@ -1622,17 +1673,15 @@ def loop(loop_type):
                 else:
                     func()
             except Exception as e:
-                print(f"[flex loop error] {e}")
+                error(str(e))
 
         def wrapped():
             global _asyncio_loop
-            # Prevent double-running
             if func in _pending_tasks and not _pending_tasks[func].done():
                 return
 
             _pending_tasks[func] = asyncio.run_coroutine_threadsafe(runner(), _asyncio_loop)
 
-        # Register the wrapped function (which is always sync)
         match loop_type:
             case LoopType.FLEX:
                 game.register_flex_loop(wrapped)
@@ -1645,5 +1694,5 @@ def loop(loop_type):
 
     return decorator
 
-def distance(begin: Position, end: Position):
-    return math.sqrt((begin.x - end.x) ** 2 + (begin.y - end.y) ** 2)
+async def pause(milliseconds: int):
+    await asyncio.sleep(milliseconds / 1000)

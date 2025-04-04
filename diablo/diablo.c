@@ -3,6 +3,9 @@
 #include "../utilities/log.h"
 #include "constants.h"
 #include "diablo.h"
+
+#include <corecrt_math.h>
+
 #include "hooks.h"
 
 #pragma optimize("", off)
@@ -56,6 +59,7 @@ DrawLine_t DrawLine = NULL;
 AbsScreenToMap_t AbsScreenToMap = NULL;
 MapToAbsScreen_t MapToAbsScreen = NULL;
 GetAutomapSize_t GetAutomapSize = NULL;
+GetHwnd_t GetHwnd = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -155,6 +159,7 @@ void initialize_diablo() {
     AbsScreenToMap = (AbsScreenToMap_t)((uintptr_t)d2common + 0x3D8E0);
     MapToAbsScreen = (MapToAbsScreen_t)((uintptr_t)d2common + 0x3DB70);
     GetAutomapSize = (GetAutomapSize_t)((uintptr_t)d2client + 0x5F080);
+    GetHwnd = (GetHwnd_t)((uintptr_t)d2gfx + 0x7FB0);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;
@@ -170,7 +175,7 @@ void initialize_diablo() {
     hook();
 }
 
-bool PickUp(uint32_t unit_id, uint32_t unit_type) {
+bool send_pick_up_item(uint32_t unit_id, uint32_t unit_type) {
     uint8_t *packet = malloc(13);
     if (!packet) return 0;
 
@@ -184,7 +189,7 @@ bool PickUp(uint32_t unit_id, uint32_t unit_type) {
     return 1;
 }
 
-void GetItemCodeEx(struct UnitAny* pUnit, char* szBuf) {
+void get_item_code(struct UnitAny* pUnit, char* szBuf) {
     if (pUnit->dwType == UNIT_ITEM)
     {
         struct ItemText* pTxt = GetItemText(pUnit->dwTxtFileNo);
@@ -319,4 +324,45 @@ void reveal_room(struct Room2* room) {
 			AddAutomapCell(cell, &((*automap_layer)->pObjects));
 		}
 	}
+}
+
+void send_mouse_click(uint32_t x, uint32_t y, uint32_t type) {
+	HWND hwnd = GetHwnd();
+	if (!hwnd) return;
+
+	RECT rect;
+	GetClientRect(hwnd, &rect);
+
+	float scale = fminf((float)rect.right / 800.0f, (float)rect.bottom / 600.0f);
+	uint32_t viewport_width = (uint32_t)(800 * scale);
+	uint32_t viewport_height = (uint32_t)(600 * scale);
+	uint32_t offset_x = (rect.right - viewport_width) / 2;
+	uint32_t offset_y = (rect.bottom - viewport_height) / 2;
+
+	uint32_t scaled_x = (uint32_t)(x * scale) + offset_x;
+	uint32_t scaled_y = (uint32_t)(y * scale) + offset_y;
+
+	LPARAM lp = (scaled_y << 16) | (scaled_x & 0xFFFF);
+	PostMessageW(hwnd, type, 0, lp);
+}
+
+bool click_control(struct Control *ctrl, uint32_t x, uint32_t y) {
+	// if (!ctrl || ClientState() != ClientStateMenu) {
+	// 	return false;
+	// }
+
+	if (x == -1) {
+		x = ctrl->dwPosX + ctrl->dwSizeX / 2;
+	}
+
+	if (y == -1) {
+		y = ctrl->dwPosY + ctrl->dwSizeY / 2;
+	}
+
+	send_mouse_click(x, y, 0);
+	Sleep(100);
+	send_mouse_click(x, y, 1);
+	Sleep(100);
+
+	return true;
 }

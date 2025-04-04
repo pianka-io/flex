@@ -3,7 +3,7 @@ from flex import *
 last_game: Optional[str] = None
 
 @loop(LoopType.FLEX)
-async def flex_loop():
+def flex_loop():
     ensure_revealed()
 
 def ensure_revealed():

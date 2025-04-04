@@ -173,7 +173,7 @@ static PyObject *py_interact(PyObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "II", &unit_id, &unit_type)) {
         return NULL;
     }
-    PickUp(unit_id, unit_type);
+    send_pick_up_item(unit_id, unit_type);
     Py_RETURN_NONE;
 }
 
@@ -379,7 +379,7 @@ static PyObject *py_get_item_code(PyObject *self, PyObject *args) {
     }
 
     char itemCode[4] = {0};
-    GetItemCodeEx(pUnit, itemCode);
+    get_item_code(pUnit, itemCode);
 
     return PyUnicode_FromString(itemCode);
 }
@@ -640,6 +640,28 @@ static PyObject *py_get_all_controls(PyObject *self, PyObject *args) {
     return list;
 }
 
+static PyObject *py_mouse_click(PyObject *self, PyObject *args) {
+    int x, y, button, down;
+    if (!PyArg_ParseTuple(args, "iiii", &x, &y, &button, &down)) {
+        write_log("WRN", "could not parse mouse_click arguments");
+        return NULL;
+    }
+
+    uint32_t msg;
+    if (button == 0) {
+        msg = down ? WM_LBUTTONDOWN : WM_LBUTTONUP;
+    } else if (button == 1) {
+        msg = down ? WM_RBUTTONDOWN : WM_RBUTTONUP;
+    } else {
+        write_log("WRN", "button must be 0 (left) or 1 (right)");
+        PyErr_SetString(PyExc_ValueError, "button must be 0 (left) or 1 (right)");
+        return NULL;
+    }
+
+    send_mouse_click(x, y, msg);
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef GameMethods[] = {
     {"get_game_info", py_get_game_info, METH_NOARGS, NULL},
     {"is_game_ready", py_is_game_ready, METH_NOARGS, NULL},
@@ -658,6 +680,7 @@ static PyMethodDef GameMethods[] = {
     {"wstring_at", py_wstring_at, METH_VARARGS, NULL},
     {"print_game_string", py_print_game_string, METH_VARARGS, NULL},
     {"get_all_controls", py_get_all_controls, METH_NOARGS, NULL},
+    {"mouse_click", py_mouse_click, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 

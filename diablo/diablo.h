@@ -55,6 +55,7 @@ typedef void(__stdcall *DrawLine_t)(uint32_t x1, uint32_t y1, uint32_t x2, uint3
 typedef void(__stdcall *AbsScreenToMap_t)(long *pX, long *pY);
 typedef void(__stdcall *MapToAbsScreen_t)(long *pX, long *pY);
 typedef uint32_t(__stdcall *GetAutomapSize_t)(void);
+typedef HWND(__stdcall *GetHwnd_t)(void);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -91,6 +92,7 @@ extern DrawLine_t DrawLine;
 extern AbsScreenToMap_t AbsScreenToMap;
 extern MapToAbsScreen_t MapToAbsScreen;
 extern GetAutomapSize_t GetAutomapSize;
+extern GetHwnd_t GetHwnd;
 
 /* tables */
 extern struct UnitAny **PlayerTable;
@@ -104,11 +106,12 @@ extern struct UnitAny **TileTable;
 void initialize_diablo();
 
 /* helpers */
-void GetItemCodeEx(struct UnitAny* pUnit, char* szBuf);
-bool PickUp(uint32_t unit_id, uint32_t unit_type);
+void get_item_code(struct UnitAny* pUnit, char* szBuf);
+bool send_pick_up_item(uint32_t unit_id, uint32_t unit_type);
 void reveal_act(uint32_t act);
 void reveal_level(struct Level *level);
 void reveal_room(struct Room2* room);
 void draw_presets(struct Room2 *pRoom2);
+void send_mouse_click(uint32_t x, uint32_t y, uint32_t type);
 
 #endif
