@@ -56,6 +56,7 @@ typedef void(__stdcall *AbsScreenToMap_t)(long *pX, long *pY);
 typedef void(__stdcall *MapToAbsScreen_t)(long *pX, long *pY);
 typedef uint32_t(__stdcall *GetAutomapSize_t)(void);
 typedef HWND(__stdcall *GetHwnd_t)(void);
+typedef void*(__fastcall *SetControlText_t)(struct Control* control, wchar_t* text);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -93,6 +94,7 @@ extern AbsScreenToMap_t AbsScreenToMap;
 extern MapToAbsScreen_t MapToAbsScreen;
 extern GetAutomapSize_t GetAutomapSize;
 extern GetHwnd_t GetHwnd;
+extern SetControlText_t SetControlText;
 
 /* tables */
 extern struct UnitAny **PlayerTable;

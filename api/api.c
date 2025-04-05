@@ -570,12 +570,75 @@ static PyMemberDef PyControl_members[] = {
     {NULL}
 };
 
+static PyObject *py_mouse_click(PyObject *self, PyObject *args) {
+    int x, y, button, down;
+    if (!PyArg_ParseTuple(args, "iiii", &x, &y, &button, &down)) {
+        write_log("WRN", "could not parse mouse_click arguments");
+        return NULL;
+    }
+
+    uint32_t msg;
+    if (button == 0) {
+        msg = down ? WM_LBUTTONDOWN : WM_LBUTTONUP;
+    } else if (button == 1) {
+        msg = down ? WM_RBUTTONDOWN : WM_RBUTTONUP;
+    } else {
+        write_log("WRN", "button must be 0 (left) or 1 (right)");
+        PyErr_SetString(PyExc_ValueError, "button must be 0 (left) or 1 (right)");
+        return NULL;
+    }
+
+    send_mouse_click(x, y, msg);
+    Py_RETURN_NONE;
+}
+
+static PyObject *PyControl_get_text(PyControl *self, void *closure) {
+    struct Control *c = (struct Control *)self->ptr;
+    if (!c) Py_RETURN_NONE;
+
+    if (c->dwType == CONTROL_TEXTBOX) {
+        if (c->pFirstText && c->pFirstText->pNext && c->pFirstText->pNext->wText[0])
+            return PyUnicode_FromWideChar(c->pFirstText->pNext->wText[0], -1);
+    } else {
+        if (c->wText2)
+            return PyUnicode_FromWideChar(c->wText2, -1);
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *PyControl_get_text_list(PyControl *self, void *closure) {
+    struct Control *c = (struct Control *)self->ptr;
+    if (!c || !c->pFirstText) {
+        return PyList_New(0);
+    }
+
+    PyObject *list = PyList_New(0);
+    struct ControlText *cur = c->pFirstText;
+    while (cur) {
+        if (cur->wText[0]) {
+            PyObject *str = PyUnicode_FromWideChar(cur->wText[0], -1);
+            if (str) PyList_Append(list, str);
+            Py_XDECREF(str);  // if Append fails, this will avoid leak
+        }
+        cur = cur->pNext;
+    }
+    return list;
+}
+
+static PyGetSetDef PyControl_getset[] = {
+    {"text", (getter)PyControl_get_text, NULL, "Main control text", NULL},
+    {"text_list", (getter)PyControl_get_text_list, NULL, "List of control strings", NULL},
+    {NULL}
+};
+
 static PyTypeObject PyControlType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "game.Control",
     .tp_basicsize = sizeof(PyControl),
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_members = PyControl_members,
+    .tp_getset = PyControl_getset,
 };
 
 static PyObject *build_control(struct Control *c) {
@@ -626,8 +689,6 @@ static PyObject *py_get_all_controls(PyObject *self, PyObject *args) {
             write_log("ERR", "PyList_Append failed at index %d", count);
         }
 
-        // Py_DECREF(py_control);  // Intentionally omitted — PyList_Append steals ref
-
         cur = cur->pNext;
         count++;
     }
@@ -640,26 +701,71 @@ static PyObject *py_get_all_controls(PyObject *self, PyObject *args) {
     return list;
 }
 
-static PyObject *py_mouse_click(PyObject *self, PyObject *args) {
-    int x, y, button, down;
-    if (!PyArg_ParseTuple(args, "iiii", &x, &y, &button, &down)) {
-        write_log("WRN", "could not parse mouse_click arguments");
+static PyObject *py_set_control_text(PyObject *self, PyObject *args) {
+    PyObject *py_control;
+    const char *text;
+
+    if (!PyArg_ParseTuple(args, "Os", &py_control, &text)) {
         return NULL;
     }
 
-    uint32_t msg;
-    if (button == 0) {
-        msg = down ? WM_LBUTTONDOWN : WM_LBUTTONUP;
-    } else if (button == 1) {
-        msg = down ? WM_RBUTTONDOWN : WM_RBUTTONUP;
-    } else {
-        write_log("WRN", "button must be 0 (left) or 1 (right)");
-        PyErr_SetString(PyExc_ValueError, "button must be 0 (left) or 1 (right)");
+    if (!PyObject_TypeCheck(py_control, &PyControlType)) {
+        PyErr_SetString(PyExc_TypeError, "First argument must be a game.Control");
         return NULL;
     }
 
-    send_mouse_click(x, y, msg);
+    PyControl *ctrl = (PyControl *)py_control;
+    struct Control *native = (struct Control *)ctrl->ptr;
+
+    // if (ClientState() != ClientStateMenu || !native || !text) {
+    if (!native || !text) {
+        Py_RETURN_NONE;
+    }
+
+    int len = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+    if (len <= 0) {
+        PyErr_SetString(PyExc_ValueError, "Failed to convert text to wide string.");
+        return NULL;
+    }
+
+    wchar_t *wide_text = (wchar_t *)malloc(len * sizeof(wchar_t));
+    if (!wide_text) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+
+    MultiByteToWideChar(CP_UTF8, 0, text, -1, wide_text, len);
+    SetControlText(native, wide_text);
+    free(wide_text);
+
     Py_RETURN_NONE;
+}
+
+static PyObject *py_get_character_controls(PyObject *self, PyObject *args) {
+    PyControl *py_start;
+    if (!PyArg_ParseTuple(args, "O!", &PyControlType, &py_start)) {
+        PyErr_SetString(PyExc_TypeError, "Expected a Control");
+        return NULL;
+    }
+
+    struct Control *pControl = (struct Control *)py_start->ptr;
+    PyObject *list = PyList_New(0);
+
+    while (pControl != NULL) {
+        if (pControl->dwType == CONTROL_TEXTBOX &&
+            pControl->pFirstText != NULL &&
+            pControl->pFirstText->pNext != NULL)
+        {
+            PyObject *wrapped = build_control(pControl);
+            if (wrapped)
+                PyList_Append(list, wrapped);
+            Py_XDECREF(wrapped);
+        }
+
+        pControl = pControl->pNext;
+    }
+
+    return list;
 }
 
 static PyMethodDef GameMethods[] = {
@@ -681,6 +787,8 @@ static PyMethodDef GameMethods[] = {
     {"print_game_string", py_print_game_string, METH_VARARGS, NULL},
     {"get_all_controls", py_get_all_controls, METH_NOARGS, NULL},
     {"mouse_click", py_mouse_click, METH_VARARGS, NULL},
+    {"set_control_text", py_set_control_text, METH_VARARGS, NULL},
+    {"get_character_controls", py_get_character_controls, METH_VARARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 

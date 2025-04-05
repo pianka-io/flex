@@ -60,6 +60,7 @@ AbsScreenToMap_t AbsScreenToMap = NULL;
 MapToAbsScreen_t MapToAbsScreen = NULL;
 GetAutomapSize_t GetAutomapSize = NULL;
 GetHwnd_t GetHwnd = NULL;
+SetControlText_t SetControlText = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -160,6 +161,7 @@ void initialize_diablo() {
     MapToAbsScreen = (MapToAbsScreen_t)((uintptr_t)d2common + 0x3DB70);
     GetAutomapSize = (GetAutomapSize_t)((uintptr_t)d2client + 0x5F080);
     GetHwnd = (GetHwnd_t)((uintptr_t)d2gfx + 0x7FB0);
+    SetControlText = (SetControlText_t)((uintptr_t)d2win + 0x14DF0);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;

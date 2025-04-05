@@ -3,15 +3,17 @@ from flex import *
 last_game: Optional[str] = None
 
 @loop(LoopType.FLEX)
-def flex_loop():
-    ensure_revealed()
+async def flex_loop():
+    await ensure_revealed()
 
-def ensure_revealed():
+async def ensure_revealed():
     global last_game
 
     game = get_game()
     if game is None: return
     if not game.ready: return
+
+    await pause(100)
 
     if game.name != last_game:
         info("Revealing automap...")

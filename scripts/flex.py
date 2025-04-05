@@ -1,9 +1,22 @@
+# ________/\\\\\__/\\\\\\_________________________________
+#  ______/\\\///__\////\\\_________________________________
+#   _____/\\\_________\/\\\_________________________________
+#    __/\\\\\\\\\______\/\\\________/\\\\\\\\___/\\\____/\\\_
+#     _\////\\\//_______\/\\\______/\\\/////\\\_\///\\\/\\\/__
+#      ____\/\\\_________\/\\\_____/\\\\\\\\\\\____\///\\\/____
+#       ____\/\\\_________\/\\\____\//\\///////______/\\\/\\\___
+#        ____\/\\\_______/\\\\\\\\\__\//\\\\\\\\\\__/\\\/\///\\\_
+#         ____\///_______\/////////____\//////////__\///____\///__
+
+import traceback
 from asyncio import AbstractEventLoop
+from collections import defaultdict
+
 import game
 import math
-from typing import Optional, TypeAlias
+from typing import Optional, TypeAlias, Callable, Awaitable
 from dataclasses import dataclass
-from enum import IntEnum, StrEnum
+from enum import IntEnum, StrEnum, Enum, auto
 from game import wstring_at
 import asyncio
 import inspect
@@ -49,11 +62,198 @@ class Unit:
         return self._internal_unit.id
 
 #####################################
+## client                          ##
+#####################################
+class ClientState(Enum):
+    NONE = auto()
+    LOBBY = auto()
+    INLINE = auto()
+    CHAT = auto()
+    MAIN_MENU = auto()
+    LOGIN = auto()
+    LOGIN_ERROR = auto()
+    DISCONNECTED = auto()
+    LOST_CONNECTION = auto()
+    CONNECTING = auto()
+    CHARACTER_SELECT = auto()
+    CHARACTER_SELECT_NO_CHARS = auto()
+    CHARACTER_SELECT_CHANGE_REALM = auto()
+    CHARACTER_SELECT_PLEASE_WAIT = auto()
+    CHARACTER_CREATE = auto()
+    CHARACTER_CREATE_ALREADY_EXISTS = auto()
+    NEW_CHARACTER = auto()
+    NEW_ACCOUNT = auto()
+    REALM_DOWN = auto()
+    DIFFICULTY = auto()
+    GAME_DOES_NOT_EXIST = auto()
+    GAME_IS_FULL = auto()
+    GAME_EXISTS = auto()
+    SERVER_DOWN = auto()
+    CREATE = auto()
+    JOIN = auto()
+    CHANNEL = auto()
+    LADDER = auto()
+    CDKEY_IN_USE = auto()
+    UNABLE_TO_CONNECT = auto()
+    INVALID_CDKEY = auto()
+    SPLASH = auto()
+    GATEWAY = auto()
+    AGREE_TO_TERMS = auto()
+    PLEASE_READ = auto()
+    REGISTER_EMAIL = auto()
+    CREDITS = auto()
+    CINEMATICS = auto()
+    OTHER_MULTIPLAYER = auto()
+    ENTER_IP_ADDRESS = auto()
+    TCP_IP = auto()
+    PLEASE_WAIT = auto()
+    IN_GAME = auto()
+
+def get_client_state() -> ClientState:
+    if game.is_game_ready():
+        return ClientState.IN_GAME
+
+    f = ControlsMeta._find_control
+
+    # connecting to battle.net
+    if f(Position(330, 416), Dimensions(128, 35)):
+        return ClientState.CONNECTING
+
+    # login error
+    if f(Position(335, 412), Dimensions(128, 35)):
+        return ClientState.LOGIN_ERROR
+
+    # lost connection / disconnected / char create already exists
+    if f(Position(351, 337), Dimensions(96, 32)):
+        if f(Position(268, 320), Dimensions(264, 120)):
+            return ClientState.LOST_CONNECTION  # checked first in C
+        elif f(Position(268, 320), Dimensions(264, 120)):
+            return ClientState.DISCONNECTED
+        else:
+            return ClientState.CHARACTER_CREATE_ALREADY_EXISTS
+
+    # character select please wait / please wait
+    if f(Position(351, 337), Dimensions(96, 32)):
+        if f(Position(268, 300), Dimensions(264, 100)):
+            return ClientState.CHARACTER_SELECT_PLEASE_WAIT
+        elif f(Position(268, 320), Dimensions(264, 120)):
+            return ClientState.PLEASE_WAIT
+
+    # inline queue / create / join / channel / ladder
+    if f(Position(433, 433), Dimensions(96, 32)):
+        if f(Position(427, 234), Dimensions(300, 100)):
+            return ClientState.INLINE
+        elif f(Position(459, 380), Dimensions(150, 12)):
+            return ClientState.CREATE
+        elif f(Position(594, 433), Dimensions(172, 32)):
+            return ClientState.JOIN
+        elif f(Position(671, 433), Dimensions(96, 32)):
+            return ClientState.CHANNEL
+        else:
+            return ClientState.LADDER
+
+    # login / character select change realm / char select variants
+    if f(Position(33, 572), Dimensions(128, 35)):
+        if f(Position(264, 484), Dimensions(272, 35)):
+            return ClientState.LOGIN
+        elif f(Position(495, 438), Dimensions(96, 32)):
+            return ClientState.CHARACTER_SELECT_CHANGE_REALM
+        elif f(Position(627, 572), Dimensions(128, 35)) and f(Position(33, 528), Dimensions(168, 60)):
+            if f(Position(264, 297), Dimensions(272, 35)):
+                return ClientState.DIFFICULTY
+            elif f(Position(37, 178), Dimensions(200, 92)):
+                return ClientState.CHARACTER_SELECT
+            elif f(Position(45, 318), Dimensions(531, 140)):
+                return ClientState.REALM_DOWN
+            else:
+                return ClientState.CHARACTER_SELECT_NO_CHARS
+
+        if f(Position(627, 572), Dimensions(128, 35)):
+            return ClientState.CHARACTER_CREATE
+        elif f(Position(321, 448), Dimensions(300, 32)):
+            return ClientState.NEW_ACCOUNT
+        else:
+            return ClientState.NEW_CHARACTER
+
+    # cd key / unable to connect / invalid cd key
+    if f(Position(335, 450), Dimensions(128, 35)):
+        if f(Position(162, 270), Dimensions(477, 50)):
+            return ClientState.CDKEY_IN_USE
+        elif f(Position(162, 420), Dimensions(477, 100)):
+            return ClientState.UNABLE_TO_CONNECT
+        else:
+            return ClientState.INVALID_CDKEY
+
+    # game does not exist / is full / exists / server down
+    if f(Position(438, 300), Dimensions(326, 150)):
+        return ClientState.GAME_DOES_NOT_EXIST  # all share same dimensions, prioritized
+    if f(Position(438, 300), Dimensions(326, 150)):
+        return ClientState.GAME_IS_FULL
+    if f(Position(438, 300), Dimensions(326, 150)):
+        return ClientState.GAME_EXISTS
+    if f(Position(438, 300), Dimensions(326, 150)):
+        return ClientState.SERVER_DOWN
+
+    # main menu
+    if f(Position(264, 324), Dimensions(272, 35)):
+        return ClientState.MAIN_MENU
+
+    # splash
+    if f(Position(100, 580), Dimensions(600, 80)):
+        return ClientState.SPLASH
+
+    # lobby
+    if f(Position(27, 480), Dimensions(120, 20)):
+        return ClientState.LOBBY
+
+    # chat
+    if f(Position(187, 470), Dimensions(80, 20)):
+        return ClientState.CHAT
+
+    # gateway
+    if f(Position(281, 538), Dimensions(96, 32)):
+        return ClientState.GATEWAY
+
+    # agree to terms
+    if f(Position(525, 513), Dimensions(128, 35)):
+        return ClientState.AGREE_TO_TERMS
+
+    # please read
+    if f(Position(525, 513), Dimensions(128, 35)):
+        return ClientState.PLEASE_READ
+
+    # register email
+    if f(Position(265, 527), Dimensions(272, 35)):
+        return ClientState.REGISTER_EMAIL
+
+    # credits
+    if f(Position(33, 578), Dimensions(128, 35)):
+        return ClientState.CREDITS
+
+    # cinematics
+    if f(Position(334, 488), Dimensions(128, 35)):
+        return ClientState.CINEMATICS
+
+    # other multiplayer
+    if f(Position(264, 350), Dimensions(272, 35)):
+        return ClientState.OTHER_MULTIPLAYER
+
+    # enter ip
+    if f(Position(281, 337), Dimensions(96, 32)):
+        return ClientState.ENTER_IP_ADDRESS
+
+    # tcp/ip
+    if f(Position(265, 206), Dimensions(272, 35)):
+        return ClientState.TCP_IP
+
+    return ClientState.NONE
+
+#####################################
 ## game                            ##
 #####################################
 class Game:
     def __init__(self, game_info: game.GameInfo):
-        self.internal_game_info = game_info
+        self.__internal_game_info = game_info
 
     @property
     def ready(self) -> bool:
@@ -61,46 +261,183 @@ class Game:
 
     @property
     def name(self) -> str:
-        return self.internal_game_info.name
+        return self.__internal_game_info.name
 
 #####################################
 ## controls                        ##
 #####################################
+class ControlType(IntEnum):
+    EDIT_BOX = 0x01
+    IMAGE = 0x02
+    UNUSED = 0x03
+    TEXT_BOX = 0x04
+    SCROLL_BAR = 0x05
+    BUTTON = 0x06
+    LIST = 0x07
+    TIMER = 0x08
+    SMACK = 0x09
+    PROGRESS_BAR = 0x0a
+    POPUP = 0x0b
+    ACCOUNT_LIST = 0x0c
+
 class Control:
     def __init__(self, control: game.Control):
-        self.internal_control = control
+        self._internal_control = control
+
+    @property
+    def type(self) -> ControlType:
+        return ControlType(self._internal_control.type)
 
     @property
     def position(self) -> Position:
-        x = self.internal_control.x
-        y = self.internal_control.y
+        x = self._internal_control.x
+        y = self._internal_control.y
         return Position(x, y)
 
     @property
     def dimensions(self) -> Dimensions:
-        width = self.internal_control.size_x
-        height = self.internal_control.size_y
+        width = self._internal_control.size_x
+        height = self._internal_control.size_y
         return Dimensions(width, height)
 
+    @property
+    def text(self) -> str:
+        return self._internal_control.text
+
+    @text.setter
+    def text(self, value: str):
+        game.set_control_text(self._internal_control, value)
+
+    @property
+    def items(self) -> list[str]:
+        return self._internal_control.text_list
+
     async def click(self):
-        x = self.internal_control.x
-        y = self.internal_control.y
-        width = self.internal_control.size_x
-        height = self.internal_control.size_y
+        x = self._internal_control.x
+        y = self._internal_control.y
+        width = self._internal_control.size_x
+        height = self._internal_control.size_y
         click_x = int(x + (width / 2))
         click_y = int(y - (height / 2))
         await mouse_click(MouseButton.LEFT, Position(click_x, click_y))
 
-class Controls:
-    @classmethod
-    def battle_net(cls) -> Optional[Control]:
+class ControlsMeta:
+    @staticmethod
+    def _find_control(position: Position, dimensions: Dimensions) -> Optional[Control]:
         controls = get_all_controls()
         for control in controls:
-            info(str(control.position))
-            info(str(control.dimensions))
-            if control.position == Position(264, 366) and control.dimensions == Dimensions(272, 35):
+            if control.position == position and control.dimensions == dimensions:
                 return control
         return None
+
+    ## main menu
+    @property
+    def single_player(cls) -> Optional[Control]:
+        return cls._find_control(Position(264, 324), Dimensions(272, 35))
+
+    @property
+    def battle_net(cls) -> Optional[Control]:
+        return cls._find_control(Position(264, 366), Dimensions(272, 35))
+
+    @property
+    def choose_gateway(cls) -> Optional[Control]:
+        return cls._find_control(Position(264, 391), Dimensions(272, 25))
+
+    @property
+    def gateway_list(cls) -> Optional[Control]:
+        # to click the items: y = 344 + ((index * 24) + 12)
+        return cls._find_control(Position(257, 500), Dimensions(292, 160))
+
+    @property
+    def gateway_list_ok(cls) -> Optional[Control]:
+        return cls._find_control(Position(281, 538), Dimensions(96, 32))
+
+    @property
+    def other_multiplayer(cls) -> Optional[Control]:
+        return cls._find_control(Position(264, 433), Dimensions(272, 35))
+
+    ## login screen
+    @property
+    def username(cls) -> Optional[Control]:
+        return cls._find_control(Position(322, 342), Dimensions(162, 19))
+
+    @property
+    def password(cls) -> Optional[Control]:
+        return cls._find_control(Position(322, 396), Dimensions(162, 19))
+
+    @property
+    def log_in(cls) -> Optional[Control]:
+        return cls._find_control(Position(264, 484), Dimensions(272, 35))
+
+    @property
+    def exit_login(cls) -> Optional[Control]:
+        return cls._find_control(Position(264, 484), Dimensions(272, 35))
+
+    ## character screen
+    @property
+    def character_list(cls) -> list[Control]:
+        control = cls._find_control(Position(237, 178), Dimensions(72, 93))
+        if control is None:
+            return []
+        raw_controls = game.get_character_controls(control._internal_control)
+        return [Control(c) for c in raw_controls]
+
+    @property
+    def character_list_ok(cls) -> Optional[Control]:
+        return cls._find_control(Position(627, 572), Dimensions(128, 35))
+
+    ## lobby
+    @property
+    def enter_chat(cls) -> Optional[Control]:
+        return cls._find_control(Position(27, 480), Dimensions(120, 20))
+
+    @property
+    def create(cls) -> Optional[Control]:
+        return cls._find_control(Position(533, 469), Dimensions(120, 20))
+
+    @property
+    def join(cls) -> Optional[Control]:
+        return cls._find_control(Position(652, 469), Dimensions(120, 20))
+
+    ## create game
+    @property
+    def create_name(cls) -> Optional[Control]:
+        return cls._find_control(Position(432, 162), Dimensions(158, 20))
+
+    @property
+    def create_password(cls) -> Optional[Control]:
+        return cls._find_control(Position(432, 217), Dimensions(158, 20))
+
+    @property
+    def create_normal(cls) -> Optional[Control]:
+        return cls._find_control(Position(430, 381), Dimensions(16, 16))
+
+    @property
+    def create_nightmare(cls) -> Optional[Control]:
+        return cls._find_control(Position(555, 381), Dimensions(16, 16))
+
+    @property
+    def create_hell(cls) -> Optional[Control]:
+        return cls._find_control(Position(698, 381), Dimensions(16, 16))
+
+    @property
+    def create_game(cls) -> Optional[Control]:
+        return cls._find_control(Position(594, 433), Dimensions(172, 32))
+
+    ## join game
+    @property
+    def join_name(cls) -> Optional[Control]:
+        return cls._find_control(Position(432, 148), Dimensions(155, 20))
+
+    @property
+    def join_password(cls) -> Optional[Control]:
+        return cls._find_control(Position(606, 148), Dimensions(158, 20))
+
+    @property
+    def join_game(cls) -> Optional[Control]:
+        return cls._find_control(Position(594, 433), Dimensions(172, 32))
+
+Controls = ControlsMeta()
 
 class MouseButton(IntEnum):
     LEFT = 0
@@ -112,7 +449,7 @@ class ButtonDirection(IntEnum):
 
 async def mouse_click(button: MouseButton, position: Position):
     game.mouse_click(position.x, position.y, int(button), ButtonDirection.DOWN)
-    await pause(100)
+    # await pause(100)
     game.mouse_click(position.x, position.y, int(button), ButtonDirection.UP)
 
 #####################################
@@ -1660,9 +1997,11 @@ def distance(begin: Position, end: Position):
 class LoopType(StrEnum):
     FLEX = "FLEX"
     DRAW_AUTOMAP = "DRAW_AUTOMAP"
+    CLIENT_STATE = "CLIENT_STATE"
 
 _pending_tasks = {}
-def loop(loop_type):
+_client_state_handlers: dict[ClientState, list[Callable[[], None]]] = defaultdict(list)
+def loop(loop_type: LoopType, state: ClientState = None):
     def decorator(func):
         is_async = inspect.iscoroutinefunction(func)
 
@@ -1672,8 +2011,8 @@ def loop(loop_type):
                     await func()
                 else:
                     func()
-            except Exception as e:
-                error(str(e))
+            except Exception:
+                error(traceback.format_exc())
 
         def wrapped():
             global _asyncio_loop
@@ -1687,12 +2026,25 @@ def loop(loop_type):
                 game.register_flex_loop(wrapped)
             case LoopType.DRAW_AUTOMAP:
                 game.register_draw_automap_loop(wrapped)
+            case LoopType.CLIENT_STATE:
+                if not state:
+                    warn(f"Missing client state for {func.__name__}")
+                else:
+                    _client_state_handlers[state].append(wrapped)
             case _:
                 warn(f"Unknown loop type {loop_type} on {func.__name__}")
 
         return wrapped
 
     return decorator
+
+_last_client_state = None
+@loop(LoopType.FLEX)
+def _client_state_loop():
+    global _last_client_state
+    state = get_client_state()
+    for func in _client_state_handlers.get(state, []):
+        func()
 
 async def pause(milliseconds: int):
     await asyncio.sleep(milliseconds / 1000)
