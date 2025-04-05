@@ -17,7 +17,7 @@ async def when_main_menu():
 @loop(LoopType.CLIENT_STATE, ClientState.LOGIN)
 async def when_login():
     Controls.username.text = "flex"
-    Controls.password.text = "pianka"
+    Controls.password.text = ""
     await Controls.log_in.click()
 
 @loop(LoopType.CLIENT_STATE, ClientState.CHARACTER_SELECT)
