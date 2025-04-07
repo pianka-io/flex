@@ -24,6 +24,8 @@ struct GameInfo **game_info = NULL;
 uint32_t *automap_divisor = NULL;
 POINT *automap_offset = NULL;
 struct Control **first_control = NULL;
+struct UnitHashTable *client_side_units = NULL;
+struct UnitHashTable *server_side_units = NULL;
 
 PrintGameString_t PrintGameString = NULL;
 GetMouseXOffset_t GetMouseXOffset = NULL;
@@ -61,6 +63,8 @@ MapToAbsScreen_t MapToAbsScreen = NULL;
 GetAutomapSize_t GetAutomapSize = NULL;
 GetHwnd_t GetHwnd = NULL;
 SetControlText_t SetControlText = NULL;
+GetItemName_t GetItemName = NULL;
+GetUnitName_I_t GetUnitName_I = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -124,6 +128,8 @@ void initialize_diablo() {
     automap_divisor = (uint32_t *)((uintptr_t)d2client + 0xF16B0);
     automap_offset = (POINT *)((uintptr_t)d2client + 0x11C1F8);
     first_control = (struct Control **)((uintptr_t)d2win + 0x214A0);
+	client_side_units = (struct UnitHashTable *)((uintptr_t)d2client + 0x109A08);
+	server_side_units = (struct UnitHashTable *)((uintptr_t)d2client + 0x10A608);
 
     /* functions */
     PrintGameString = (PrintGameString_t)((uintptr_t)d2client + 0x7D850);
@@ -162,6 +168,8 @@ void initialize_diablo() {
     GetAutomapSize = (GetAutomapSize_t)((uintptr_t)d2client + 0x5F080);
     GetHwnd = (GetHwnd_t)((uintptr_t)d2gfx + 0x7FB0);
     SetControlText = (SetControlText_t)((uintptr_t)d2win + 0x14DF0);
+    GetUnitName_I = (GetUnitName_I_t)((uintptr_t)d2client + 0xA5D90);
+    GetItemName = (GetItemName_t)((uintptr_t)d2client + 0x914F0);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;
@@ -174,7 +182,7 @@ void initialize_diablo() {
     TileTable    = &unit_table[128 * UNIT_TILE];
 
     /* hooks */
-    hook();
+    hook(d2client);
 }
 
 bool send_pick_up_item(uint32_t unit_id, uint32_t unit_type) {
@@ -215,6 +223,15 @@ DWORD __declspec(naked) __fastcall InitAutomapLayer_S(DWORD nLayerNo)
     }
 }
 
+DWORD __declspec(naked) __fastcall GetUnitName_S(DWORD UnitAny)
+{
+	__asm
+	{
+		mov eax, ecx
+		jmp GetUnitName_I
+	}
+}
+
 struct AutomapLayer *init_layer(uint32_t level) {
     struct AutomapLayer2 *layer = GetLayer(level);
 
@@ -223,6 +240,10 @@ struct AutomapLayer *init_layer(uint32_t level) {
     }
 
     return (struct AutomapLayer *)InitAutomapLayer_S(layer->nLayerNo);
+}
+
+wchar_t* get_unit_name(uintptr_t unit) {
+	return (wchar_t*)GetUnitName_S(unit);
 }
 
 struct Level *get_level(struct Act* pAct, uint32_t level) {

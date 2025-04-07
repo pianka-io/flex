@@ -31,8 +31,9 @@ async def when_character_select():
 @loop(LoopType.CLIENT_STATE, ClientState.LOBBY)
 @loop(LoopType.CLIENT_STATE, ClientState.CREATE)
 async def when_lobby():
+    await Controls.create.click()
     if not Controls.create_name:
-        await Controls.create.click()
+        return
     Controls.create_name.text = "flex-" + str(random.randint(1, 1000))
     await Controls.create_game.click()
 

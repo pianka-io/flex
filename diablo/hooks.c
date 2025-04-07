@@ -18,6 +18,8 @@
 #define INST_JMP	0xE9
 #define INST_RET	0xC3
 
+struct List *global_automap_elements = NULL;
+
 uint8_t WriteBytes(void *addr, void *data, uint32_t len) {
     uint32_t old_protect;
 
@@ -286,7 +288,6 @@ void myDrawAutomapCell(struct CellFile *cellfile, int xpos, int ypos, uint8_t co
     }
 
     cellfile->mylastcol = coltab[cellfile->mytabno ^= (col != cellfile->mylastcol)][255] = col;
-
     DrawAutomapCell2(&ct, xpos, ypos, (uint32_t)-1, 5, coltab[cellfile->mytabno]);
 }
 
@@ -333,30 +334,13 @@ void GameAutomapDraw() {
     if (plugins == NULL) return;
 
     EnterCriticalSection(&plugins_lock);
-    struct List *plugin_node = plugins;
-
-    while (plugin_node) {
-        if (plugin_node->data == NULL) {
-            plugin_node = plugin_node->next;
-            continue;
-        }
-
-        struct Plugin *plugin = plugin_node->data;
-        struct List *element = plugin->automap_elements;
-
-        while (element) {
-            if (element->data == NULL) {
-                element = element->next;
-                continue;
-            }
-
+    struct List *element = global_automap_elements;
+    while (element) {
+        if (element->data) {
             draw_automap(element->data);
-            element = element->next;
         }
-
-        plugin_node = plugin_node->next;
+        element = element->next;
     }
-
     LeaveCriticalSection(&plugins_lock);
 }
 
@@ -385,8 +369,7 @@ void __declspec(naked) GameAutomapDraw_Interception()
     }
 }
 
-void hook() {
-    HMODULE d2client = GetModuleHandleA("D2Client.dll");
+void hook(HMODULE d2client) {
     PatchJmp((uintptr_t)d2client + 0xC3DB4, GameDraw_Interception, 6);
     PatchJmp((uintptr_t)d2client + 0x626C9, GameAutomapDraw_Interception, 5);
 }

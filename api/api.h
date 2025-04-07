@@ -26,6 +26,7 @@ typedef struct {
     uint8_t pMonsterDatafChamp;
     uint8_t pMonsterDatafBoss;
     uint8_t pMonsterDatafMinion;
+    struct Act *pAct;
 } PyUnit;
 
 typedef struct {
@@ -47,6 +48,52 @@ typedef struct {
     uint32_t size_y;
     struct Control *ptr;
 } PyControl;
+
+typedef struct {
+    PyObject_HEAD
+    struct Act *act;
+    uint32_t dwMapSeed;
+    struct Room1 *pRoom1;
+    struct ActMisc *pMisc;
+} PyAct;
+
+typedef struct {
+    PyObject_HEAD
+    struct ActMisc *misc;
+    uint32_t dwStaffTombLevel;
+    struct Level *pLevelFirst;
+} PyActMisc;
+
+typedef struct {
+    PyObject_HEAD
+    struct Level *level;
+    uint32_t level_no;
+    uint32_t pos_x;
+    uint32_t pos_y;
+    uint32_t size_x;
+    uint32_t size_y;
+    struct Room2 *pRoom2First;
+} PyLevel;
+
+typedef struct {
+    PyObject_HEAD
+    struct Room1 *room;
+    struct Room2 *room_data;
+    uint32_t pos_x;
+    uint32_t pos_y;
+    uint32_t size_x;
+    uint32_t size_y;
+} PyMapRoom;
+
+typedef struct {
+    PyObject_HEAD
+    struct PresetUnit *preset;
+
+    uint32_t type;
+    uint32_t id;
+    uint32_t x;
+    uint32_t y;
+} PyPreset;
 
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static PyObject *py_get_player_unit(PyObject *self, PyObject *args);

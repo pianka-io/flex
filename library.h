@@ -8,6 +8,7 @@
 extern struct List *plugins;
 extern CRITICAL_SECTION plugins_lock;
 extern boolean debug_mode;
+extern struct List *global_automap_elements;
 
 struct Plugin {
     struct List *automap_elements;

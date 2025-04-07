@@ -594,4 +594,22 @@ struct Control {
     };
 };
 
+struct LevelTxt {
+    DWORD dwLevelNo;
+    DWORD _1[60];
+    BYTE _2;
+    char szName[40];
+    char szEntranceText[40];
+    char szLevelDesc[41];
+    wchar_t wName[40];
+    wchar_t wEntranceText[40];
+    BYTE nObjGroup[8];
+    BYTE nObjPrb[8];
+};
+
+struct UnitHashTable
+{
+    struct UnitAny* table[128];
+};
+
 #endif

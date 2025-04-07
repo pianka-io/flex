@@ -110,7 +110,7 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     while (1) {
         flex_loop();
         automap_loop();
-        Sleep(16);
+        Sleep(0);
     }
 
     Py_Finalize();

@@ -17,21 +17,9 @@ async def ensure_revealed():
 
     if game.name != last_game:
         info("Revealing automap...")
-        print_game(TextColor.Tan, "[flex] Revealing automap...")
+        print_game(TextColor.Tan, "Revealing automap...")
         reveal_automap()
     last_game = game.name
-
-# TODO: there's probably a better way to do this (from monstats.txt)
-skip = [
-    147, # gheed
-    148, # akara
-    150, # kashya
-    152, # dummy
-    154, # charsi
-    155, # warriv
-    179, # cow
-    265, # cain
-]
 
 @loop(LoopType.DRAW_AUTOMAP)
 def draw_automap() -> list[Element]:
@@ -42,7 +30,6 @@ def draw_automap() -> list[Element]:
     elements = []
 
     for monster in get_all_monsters():
-        if monster.type in skip: continue
         cross = CrossElement(0x5B, monster.position)
         elements.append(cross)
 

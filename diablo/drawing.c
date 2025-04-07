@@ -6,9 +6,20 @@
 #include "../utilities/log.h"
 
 void world_to_automap(POINT* ptPos, uint32_t x, uint32_t y) {
-    x *= 32; y *= 32;
-    ptPos->x = ((x - y)/2/(*(INT*)automap_divisor))-(*automap_offset).x+8;
-    ptPos->y = ((x + y)/4/(*(INT*)automap_divisor))-(*automap_offset).y-8;
+    int map_x = x * 32;
+    int map_y = y * 32;
+
+    if (!automap_divisor || !*automap_divisor || !automap_offset) {
+        ptPos->x = ptPos->y = 0;
+        return;
+    }
+
+    int divisor = *(int*)automap_divisor;
+    POINT offset = *automap_offset;
+
+    ptPos->x = ((map_x - map_y) / 2 / divisor) - offset.x + 8;
+    ptPos->y = ((map_x + map_y) / 4 / divisor) - offset.y - 8;
+
     if (GetAutomapSize()) {
         --ptPos->x;
         ptPos->y += 5;
@@ -63,7 +74,7 @@ void draw_automap(struct Element *element) {
             draw_automap_cross(element);
             break;
         default:
-            write_log("WRN", "Unknown element type %i", element->type);
+            // write_log("WRN", "Unknown element type %i", element->type);
             break;
     }
 }

@@ -19,6 +19,8 @@ extern struct GameInfo **game_info;
 extern uint32_t *automap_divisor;
 extern POINT *automap_offset;
 extern struct Control **first_control;
+extern struct UnitHashTable *client_side_units;
+extern struct UnitHashTable *server_side_units;
 
 /* prototypes */
 typedef void(__stdcall *PrintGameString_t)(wchar_t *wMessage, int nColor);
@@ -41,8 +43,8 @@ typedef uint32_t(__stdcall *CopyStatList_t)(struct StatList* pStatList, struct S
 typedef void(__stdcall *RevealAutomapRoom_t)(struct Room1 *pRoom1, uint32_t dwClipFlag, struct AutomapLayer *alayer);
 typedef struct AutomapLayer *(__fastcall *InitAutomapLayer_I_t)(uint32_t layerNo);
 typedef struct AutomapLayer2 *(__fastcall *GetLayer_t)(uint32_t dwLevelNo);
-typedef void(__stdcall *AddRoomData_t)(struct Act *ptAct, uint32_t LevelId, uint32_t Xpos, uint32_t Ypos, struct Room1 * pRoom);
-typedef void(__stdcall *RemoveRoomData_t)(struct Act *ptAct, uint32_t LevelId, uint32_t Xpos, uint32_t Ypos, struct Room1 * pRoom);
+typedef void(__stdcall *AddRoomData_t)(struct Act *ptAct, uint32_t LevelId, uint32_t Xpos, uint32_t Ypos, struct Room1 *pRoom);
+typedef void(__stdcall *RemoveRoomData_t)(struct Act *ptAct, uint32_t LevelId, uint32_t Xpos, uint32_t Ypos, struct Room1 *pRoom);
 typedef struct ObjectTxt *(__stdcall *GetObjectText_t)(uint32_t objno);
 typedef struct AutomapCell *(__fastcall *NewAutomapCell_t)(void);
 typedef void(__fastcall *AddAutomapCell_t)(struct AutomapCell *aCell, struct AutomapCell **node);
@@ -56,7 +58,9 @@ typedef void(__stdcall *AbsScreenToMap_t)(long *pX, long *pY);
 typedef void(__stdcall *MapToAbsScreen_t)(long *pX, long *pY);
 typedef uint32_t(__stdcall *GetAutomapSize_t)(void);
 typedef HWND(__stdcall *GetHwnd_t)(void);
-typedef void*(__fastcall *SetControlText_t)(struct Control* control, wchar_t* text);
+typedef void *(__fastcall *SetControlText_t)(struct Control* control, wchar_t* text);
+typedef boolean(__stdcall *GetItemName_t)(struct UnitAny* pItem, wchar_t* wBuffer, uint32_t dwSize);
+typedef wchar_t *(__fastcall *GetUnitName_I_t)(uintptr_t pUnit);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -95,6 +99,8 @@ extern MapToAbsScreen_t MapToAbsScreen;
 extern GetAutomapSize_t GetAutomapSize;
 extern GetHwnd_t GetHwnd;
 extern SetControlText_t SetControlText;
+extern GetItemName_t GetItemName;
+extern GetUnitName_I_t GetUnitName_I;
 
 /* tables */
 extern struct UnitAny **PlayerTable;
@@ -108,6 +114,7 @@ extern struct UnitAny **TileTable;
 void initialize_diablo();
 
 /* helpers */
+wchar_t* get_unit_name(uintptr_t unit);
 void get_item_code(struct UnitAny* pUnit, char* szBuf);
 bool send_pick_up_item(uint32_t unit_id, uint32_t unit_type);
 void reveal_act(uint32_t act);

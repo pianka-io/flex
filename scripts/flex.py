@@ -11,7 +11,7 @@
 import traceback
 from asyncio import AbstractEventLoop
 from collections import defaultdict
-
+from collections import deque
 import game
 import math
 from typing import Optional, TypeAlias, Callable, Awaitable
@@ -41,8 +41,16 @@ def start_asyncio_loop():
 start_asyncio_loop()
 
 #####################################
-## structures                      ##
+## general                         ##
 #####################################
+class NativePtr:
+    def __init__(self, ptr: int):
+        self._ptr = ptr
+
+    @property
+    def ptr(self) -> int:
+        return self._ptr
+
 @dataclass
 class Position:
     x: int
@@ -53,13 +61,29 @@ class Dimensions:
     width: int
     height: int
 
+class UnitType(IntEnum):
+    PLAYER = 0
+    MONSTER = 1
+    OBJECT = 2
+    MISSILE = 3
+    ITEM = 4
+    TILE = 5
+
 class Unit:
     def __init__(self, unit: game.Unit):
-        self._internal_unit = unit
+        self._internal = unit
 
     @property
     def id(self) -> int:
-        return self._internal_unit.id
+        return self._internal.id
+
+    @property
+    def name(self) -> str:
+        return game.get_unit_name(self._internal)
+
+    @property
+    def unit_type(self) -> UnitType:
+        return UnitType(self._internal.type)
 
 #####################################
 ## client                          ##
@@ -247,21 +271,6 @@ def get_client_state() -> ClientState:
         return ClientState.TCP_IP
 
     return ClientState.NONE
-
-#####################################
-## game                            ##
-#####################################
-class Game:
-    def __init__(self, game_info: game.GameInfo):
-        self.__internal_game_info = game_info
-
-    @property
-    def ready(self) -> bool:
-        return not not game.is_game_ready()
-
-    @property
-    def name(self) -> str:
-        return self.__internal_game_info.name
 
 #####################################
 ## controls                        ##
@@ -453,6 +462,362 @@ async def mouse_click(button: MouseButton, position: Position):
     game.mouse_click(position.x, position.y, int(button), ButtonDirection.UP)
 
 #####################################
+## game                            ##
+#####################################
+class Game:
+    def __init__(self, game_info: game.GameInfo):
+        self.__internal_game_info = game_info
+
+    @property
+    def ready(self) -> bool:
+        return not not game.is_game_ready()
+
+    @property
+    def name(self) -> str:
+        return self.__internal_game_info.name
+
+#####################################
+## map                             ##
+#####################################
+class MapRoom:
+    def __init__(self, internal):
+        self._internal = internal
+
+    @property
+    def position(self) -> Position:
+        return Position(self._internal.pos_x, self._internal.pos_y)
+
+    @property
+    def dimensions(self) -> Dimensions:
+        return Dimensions(self._internal.size_x, self._internal.size_y)
+
+class LevelId(IntEnum):
+    NULL = 0
+    ROGUE_ENCAMPMENT = 1
+    BLOOD_MOOR = 2
+    COLD_PLAINS = 3
+    STONY_FIELD = 4
+    DARK_WOOD = 5
+    BLACK_MARSH = 6
+    TAMOE_HIGHLAND = 7
+    DEN_OF_EVIL = 8
+    CAVE_LEVEL_1 = 9
+    UNDERGROUND_PASSAGE_LEVEL_1 = 10
+    HOLE_LEVEL_1 = 11
+    PIT_LEVEL_1 = 12
+    CAVE_LEVEL_2 = 13
+    UNDERGROUND_PASSAGE_LEVEL_2 = 14
+    HOLE_LEVEL_2 = 15
+    PIT_LEVEL_2 = 16
+    BURIAL_GROUNDS = 17
+    CRYPT = 18
+    MAUSOLEUM = 19
+    FORGOTTEN_TOWER = 20
+    TOWER_CELLAR_LEVEL_1 = 21
+    TOWER_CELLAR_LEVEL_2 = 22
+    TOWER_CELLAR_LEVEL_3 = 23
+    TOWER_CELLAR_LEVEL_4 = 24
+    TOWER_CELLAR_LEVEL_5 = 25
+    MONASTERY_GATE = 26
+    OUTER_CLOISTER = 27
+    BARRACKS = 28
+    JAIL_LEVEL_1 = 29
+    JAIL_LEVEL_2 = 30
+    JAIL_LEVEL_3 = 31
+    INNER_CLOISTER = 32
+    CATHEDRAL = 33
+    CATACOMBS_LEVEL_1 = 34
+    CATACOMBS_LEVEL_2 = 35
+    CATACOMBS_LEVEL_3 = 36
+    CATACOMBS_LEVEL_4 = 37
+    TRISTRAM = 38
+    MOO_MOO_FARM = 39
+    LUT_GHOLEIN = 40
+    ROCKY_WASTE = 41
+    DRY_HILLS = 42
+    FAR_OASIS = 43
+    LOST_CITY = 44
+    VALLEY_OF_SNAKES = 45
+    CANYON_OF_THE_MAGI = 46
+    SEWERS_LEVEL_1_ACT_2 = 47
+    SEWERS_LEVEL_2_ACT_2 = 48
+    SEWERS_LEVEL_3 = 49
+    HAREM_LEVEL_1 = 50
+    HAREM_LEVEL_2 = 51
+    PALACE_CELLAR_LEVEL_1 = 52
+    PALACE_CELLAR_LEVEL_2 = 53
+    PALACE_CELLAR_LEVEL_3 = 54
+    STONY_TOMB_LEVEL_1 = 55
+    HALLS_OF_THE_DEAD_LEVEL_1 = 56
+    HALLS_OF_THE_DEAD_LEVEL_2 = 57
+    CLAW_VIPER_TEMPLE_LEVEL_1 = 58
+    STONY_TOMB_LEVEL_2 = 59
+    HALLS_OF_THE_DEAD_LEVEL_3 = 60
+    CLAW_VIPER_TEMPLE_LEVEL_2 = 61
+    MAGGOT_LAIR_LEVEL_1 = 62
+    MAGGOT_LAIR_LEVEL_2 = 63
+    MAGGOT_LAIR_LEVEL_3 = 64
+    ANCIENT_TUNNELS = 65
+    TAL_RASHAS_TOMB_1 = 66
+    TAL_RASHAS_TOMB_2 = 67
+    TAL_RASHAS_TOMB_3 = 68
+    TAL_RASHAS_TOMB_4 = 69
+    TAL_RASHAS_TOMB_5 = 70
+    TAL_RASHAS_TOMB_6 = 71
+    TAL_RASHAS_TOMB_7 = 72
+    DURIELS_LAIR = 73
+    ARCANE_SANCTUARY = 74
+    KURAST_DOCKTOWN = 75
+    SPIDER_FOREST = 76
+    GREAT_MARSH = 77
+    FLAYER_JUNGLE = 78
+    LOWER_KURAST = 79
+    KURAST_BAZAAR = 80
+    UPPER_KURAST = 81
+    KURAST_CAUSEWAY = 82
+    TRAVINCAL = 83
+    SPIDER_CAVE = 84
+    SPIDER_CAVERN = 85
+    SWAMPY_PIT_LEVEL_1 = 86
+    SWAMPY_PIT_LEVEL_2 = 87
+    FLAYER_DUNGEON_LEVEL_1 = 88
+    FLAYER_DUNGEON_LEVEL_2 = 89
+    SWAMPY_PIT_LEVEL_3 = 90
+    FLAYER_DUNGEON_LEVEL_3 = 91
+    SEWERS_LEVEL_1_ACT_3 = 92
+    SEWERS_LEVEL_2_ACT_3 = 93
+    RUINED_TEMPLE = 94
+    DISUSED_FANE = 95
+    FORGOTTEN_RELIQUARY = 96
+    FORGOTTEN_TEMPLE = 97
+    RUINED_FANE = 98
+    DISUSED_RELIQUARY = 99
+    DURANCE_OF_HATE_LEVEL_1 = 100
+    DURANCE_OF_HATE_LEVEL_2 = 101
+    DURANCE_OF_HATE_LEVEL_3 = 102
+    PANDEMONIUM_FORTRESS = 103
+    OUTER_STEPPES = 104
+    PLAINS_OF_DESPAIR = 105
+    CITY_OF_THE_DAMNED = 106
+    RIVER_OF_FLAME = 107
+    CHAOS_SANCTUM = 108
+    HARROGATH = 109
+    BLOODY_FOOTHILLS = 110
+    RIGID_HIGHLANDS = 111
+    ARREAT_PLATEAU = 112
+    CRYSTALIZED_CAVERN_LEVEL_1 = 113
+    CELLAR_OF_PITY = 114
+    CRYSTALIZED_CAVERN_LEVEL_2 = 115
+    ECHO_CHAMBER = 116
+    TUNDRA_WASTELANDS = 117
+    GLACIAL_CAVES_LEVEL_1 = 118
+    GLACIAL_CAVES_LEVEL_2 = 119
+    ROCKY_SUMMIT = 120
+    NIHILATHAKS_TEMPLE = 121
+    HALLS_OF_ANGUISH = 122
+    HALLS_OF_DEATHS_CALLING = 123
+    HALLS_OF_VAUGHT = 124
+    HELL_1 = 125
+    HELL_2 = 126
+    HELL_3 = 127
+    WORLDSTONE_KEEP_LEVEL_1 = 128
+    WORLDSTONE_KEEP_LEVEL_2 = 129
+    WORLDSTONE_KEEP_LEVEL_3 = 130
+    THRONE_OF_DESTRUCTION = 131
+    WORLDSTONE_CHAMBER = 132
+    PANDEMONIUM_RUN_1 = 133
+    PANDEMONIUM_RUN_2 = 134
+    PANDEMONIUM_RUN_3 = 135
+    PANDEMONIUM_TRISTRAM = 136
+    WAYPOINT_JUMP = 9999
+
+TownLevels = {
+    LevelId.ROGUE_ENCAMPMENT,
+    LevelId.LUT_GHOLEIN,
+    LevelId.KURAST_DOCKTOWN,
+    LevelId.PANDEMONIUM_FORTRESS,
+    LevelId.HARROGATH
+}
+
+WaypointLevels = {
+    LevelId.ROGUE_ENCAMPMENT,
+    LevelId.COLD_PLAINS,
+    LevelId.STONY_FIELD,
+    LevelId.DARK_WOOD,
+    LevelId.BLACK_MARSH,
+    LevelId.OUTER_CLOISTER,
+    LevelId.JAIL_LEVEL_1,
+    LevelId.INNER_CLOISTER,
+    LevelId.CATACOMBS_LEVEL_2,
+    LevelId.LUT_GHOLEIN,
+    LevelId.SEWERS_LEVEL_2_ACT_2,
+    LevelId.DRY_HILLS,
+    LevelId.HALLS_OF_THE_DEAD_LEVEL_2,
+    LevelId.FAR_OASIS,
+    LevelId.LOST_CITY,
+    LevelId.PALACE_CELLAR_LEVEL_1,
+    LevelId.ARCANE_SANCTUARY,
+    LevelId.CANYON_OF_THE_MAGI,
+    LevelId.KURAST_DOCKTOWN,
+    LevelId.SPIDER_FOREST,
+    LevelId.GREAT_MARSH,
+    LevelId.FLAYER_JUNGLE,
+    LevelId.LOWER_KURAST,
+    LevelId.KURAST_BAZAAR,
+    LevelId.UPPER_KURAST,
+    LevelId.TRAVINCAL,
+    LevelId.DURANCE_OF_HATE_LEVEL_2,
+    LevelId.PANDEMONIUM_FORTRESS,
+    LevelId.CITY_OF_THE_DAMNED,
+    LevelId.RIVER_OF_FLAME,
+    LevelId.HARROGATH,
+    LevelId.RIGID_HIGHLANDS,
+    LevelId.ARREAT_PLATEAU,
+    LevelId.CRYSTALIZED_CAVERN_LEVEL_1,
+    LevelId.CRYSTALIZED_CAVERN_LEVEL_2,
+    LevelId.HALLS_OF_DEATHS_CALLING,
+    LevelId.TUNDRA_WASTELANDS,
+    LevelId.GLACIAL_CAVES_LEVEL_1,
+    LevelId.WORLDSTONE_KEEP_LEVEL_2,
+}
+
+ReverseLevels: dict[LevelId, LevelId] = {
+    LevelId(level): LevelId(parent)
+    for level, parent in enumerate([
+        0, 0, 1, 2, 3, 10, 5, 6, 2, 3, 4, 6, 7, 9, 10, 11, 12, 3, 17, 17, 6, 20, 21, 22, 23, 24,
+        7, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 4, 1, 1, 40, 41, 42, 43, 44, 74, 40, 47,
+        48, 40, 50, 51, 52, 53, 41, 42, 56, 45, 55, 57, 58, 43, 62, 63, 44, 46, 46, 46, 46, 46,
+        46, 46, 1, 54, 1, 75, 76, 76, 78, 79, 80, 81, 82, 76, 76, 78, 86, 78, 88, 87, 89, 80,
+        92, 80, 80, 81, 81, 82, 82, 83, 100, 101, 1, 103, 104, 105, 106, 107, 1, 109, 110, 111,
+        112, 113, 113, 115, 115, 117, 118, 118, 109, 121, 122, 123, 111, 112, 117, 120, 128,
+        129, 130, 131, 109, 109, 109, 109
+    ])
+}
+
+ForwardLevels = defaultdict(list)
+
+for child, parent in ReverseLevels.items():
+    ForwardLevels[parent].append(child)
+
+@dataclass
+class LevelExit:
+    from_level: LevelId
+    to_level: LevelId
+    position: Position
+
+class PresetType(IntEnum):
+    MONSTER = 1
+    OBJECT = 2
+
+class Preset:
+    def __init__(self, internal: game.Preset):
+        self._internal = internal
+
+    @property
+    def preset_type(self) -> PresetType:
+        return PresetType(self._internal.type)
+
+    @property
+    def type(self) -> int:
+        return self._internal.id
+
+    @property
+    def position(self) -> Position:
+        return Position(self._internal.x, self._internal.y)
+
+class LevelData:
+    def __init__(self, internal: game.Level):
+        self._internal = internal
+
+    @property
+    def id(self) -> LevelId:
+        return LevelId(self._internal.level_no)
+
+    @property
+    def position(self) -> Position:
+        return Position(self._internal.pos_x, self._internal.pos_y)
+
+    @property
+    def dimensions(self) -> Dimensions:
+        return Dimensions(self._internal.size_x, self._internal.size_y)
+
+    @property
+    def map_rooms(self) -> list[MapRoom]:
+        return [MapRoom(r) for r in game.get_level_map_rooms(self._internal)]
+
+    @property
+    def presets(self) -> list[Preset]:
+        return [Preset(p) for p in game.get_presets_for_level(self._internal) if p.type in [1, 2]]
+
+    @property
+    def exits(self) -> list[LevelExit]:
+        raw_exits = game.get_level_exits(self._internal)
+        return [
+            LevelExit(
+                from_level=LevelId(e["from"]),
+                to_level=LevelId(e["to"]),
+                position=Position(e["x"], e["y"])
+            )
+            for e in raw_exits or []
+        ]
+
+class Levels:
+    @staticmethod
+    def find_level_by_id(level_id: LevelId) -> Optional[LevelData]:
+        player = get_player()
+        if not player:
+            return None
+        for level in game.get_act_levels(player.act_data._internal):
+            if level.level_no == level_id:
+                return LevelData(level)
+        return None
+
+def find_level_path(from_level: LevelId, to_level: LevelId) -> list[LevelId] | None:
+    queue = deque()
+    visited = set()
+    queue.append((from_level, [from_level], False))
+
+    while queue:
+        current, path, used_wp = queue.popleft()
+        if current == to_level:
+            return path
+        if (current, used_wp) in visited:
+            continue
+        visited.add((current, used_wp))
+        for child in ForwardLevels.get(current, []):
+            if (child, used_wp) not in visited:
+                queue.append((child, path + [child], used_wp))
+        if not used_wp and current in WaypointLevels:
+            for wp in WaypointLevels:
+                if wp != current and (wp, True) not in visited:
+                    queue.append((wp, path + [LevelId.WAYPOINT_JUMP, wp], True))
+
+    return None
+
+class ActData:
+    def __init__(self, internal):
+        self._internal: game.Act = internal
+
+    @property
+    def map_seed(self) -> int:
+        return self._internal.dwMapSeed
+
+    @property
+    def levels(self) -> list[LevelData]:
+        levels = game.get_act_levels(self._internal)
+        return [LevelData(lvl) for lvl in levels] if levels else []
+
+    @property
+    def staff_tomb_level(self) -> int:
+        return self._internal.pMisc.dwStaffTombLevel
+
+#####################################
+## movement                        ##
+#####################################
+async def walk_to(position: Position):
+    ...
+
+#####################################
 ## characters                      ##
 #####################################
 class Act(IntEnum):
@@ -466,13 +831,773 @@ class Character(Unit):
     @property
     def position(self) -> Position:
         return Position(
-            self._internal_unit.pPathxPos,
-            self._internal_unit.pPathyPos
+            self._internal.pPathxPos,
+            self._internal.pPathyPos
         )
 
     @property
+    def in_town(self) -> bool:
+        return self.level in TownLevels
+
+    @property
     def act(self) -> Act:
-        return Act(self._internal_unit.dwAct)
+        return Act(self._internal.dwAct)
+
+    @property
+    def act_data(self) -> Optional[ActData]:
+        act_data = game.get_player_act(self._internal)
+        return ActData(act_data) if act_data else None
+
+    @property
+    def level(self) -> LevelId:
+        level = self.level_data
+        return level.id if level else None
+
+    @property
+    def level_data(self) -> LevelData:
+        level = game.get_player_level(self._internal)
+        return LevelData(level)
+
+    @property
+    def map_room(self) -> Optional[MapRoom]:
+        room = game.get_player_map_room(self._internal)
+        return MapRoom(room) if room else None
+
+class MonsterType(IntEnum):
+    SKELETON = 0
+    RETURNED = 1
+    BONE_WARRIOR = 2
+    BURNING_DEAD = 3
+    HORROR = 4
+    ZOMBIE = 5
+    HUNGRY_DEAD = 6
+    GHOUL = 7
+    DROWNED_CARCASS = 8
+    PLAGUE_BEARER = 9
+    AFFLICTED = 10
+    TAINTED = 11
+    MISSHAPEN = 12
+    DISFIGURED = 13
+    DAMNED = 14
+    FOUL_CROW = 15
+    BLOOD_HAWK = 16
+    BLACK_RAPTOR = 17
+    CLOUD_STALKER = 18
+    FALLEN = 19
+    CARVER = 20
+    DEVILKIN = 21
+    DARK_ONE = 22
+    WARPED_FALLEN = 23
+    BRUTE = 24
+    YETI = 25
+    CRUSHER = 26
+    WAILING_BEAST = 27
+    GARGANTUAN_BEAST = 28
+    SAND_RAIDER = 29
+    MARAUDER = 30
+    INVADER = 31
+    INFIDEL = 32
+    ASSAILANT = 33
+    UNUSED_34 = 34
+    UNUSED_35 = 35
+    UNUSED_36 = 36
+    UNUSED_37 = 37
+    GHOST = 38
+    WRAITH = 39
+    SPECTER = 40
+    APPARITION = 41
+    DARK_SHAPE = 42
+    DARK_HUNTER = 43
+    VILE_HUNTER = 44
+    DARK_STALKER = 45
+    BLACK_ROGUE = 46
+    FLESH_HUNTER = 47
+    DUNE_BEAST = 48
+    ROCK_DWELLER = 49
+    JUNGLE_HUNTER = 50
+    DOOM_APE = 51
+    TEMPLE_GUARD = 52
+    MOON_CLAN = 53
+    NIGHT_CLAN = 54
+    BLOOD_CLAN = 55
+    HELL_CLAN = 56
+    DEATH_CLAN = 57
+    FALLEN_SHAMAN = 58
+    CARVER_SHAMAN = 59
+    DEVILKIN_SHAMAN = 60
+    DARK_SHAMAN = 61
+    WARPED_SHAMAN = 62
+    QUILL_RAT = 63
+    SPIKE_FIEND = 64
+    THORN_BEAST = 65
+    RAZOR_SPINE = 66
+    JUNGLE_URCHIN = 67
+    SAND_MAGGOT = 68
+    ROCK_WORM = 69
+    DEVOURER = 70
+    GIANT_LAMPREY = 71
+    WORLD_KILLER = 72
+    TOMB_VIPER = 73
+    CLAW_VIPER = 74
+    SALAMANDER = 75
+    PIT_VIPER = 76
+    SERPENT_MAGUS = 77
+    SAND_LEAPER = 78
+    CAVE_LEAPER = 79
+    TOMB_CREEPER = 80
+    TREE_LURKER = 81
+    RAZOR_PIT_DEMON = 82
+    HUNTRESS = 83
+    SABER_CAT = 84
+    NIGHT_TIGER = 85
+    HELL_CAT = 86
+    ITCHIES = 87
+    BLACK_LOCUSTS = 88
+    PLAGUE_BUGS = 89
+    HELL_SWARM = 90
+    DUNG_SOLDIER = 91
+    SAND_WARRIOR = 92
+    SCARAB = 93
+    STEEL_WEEVIL = 94
+    ALBINO_ROACH = 95
+    DRIED_CORPSE = 96
+    DECAYED = 97
+    EMBALMED = 98
+    PRESERVED_DEAD = 99
+    CADAVER = 100
+    HOLLOW_ONE = 101
+    GUARDIAN = 102
+    UNRAVELER = 103
+    HORADRIM_ANCIENT = 104
+    BAAL_SUBJECT_MUMMY = 105
+    UNUSED_106 = 106
+    UNUSED_107 = 107
+    UNUSED_108 = 108
+    UNUSED_109 = 109
+    CARRION_BIRD = 110
+    UNDEAD_SCAVENGER = 111
+    HELL_BUZZARD = 112
+    WINGED_NIGHTMARE = 113
+    SUCKER = 114
+    FEEDER = 115
+    BLOOD_HOOK = 116
+    BLOOD_WING = 117
+    GLOAM = 118
+    SWAMP_GHOST = 119
+    BURNING_SOUL = 120
+    BLACK_SOUL = 121
+    ARACH = 122
+    SAND_FISHER = 123
+    POISON_SPINNER = 124
+    FLAME_SPIDER = 125
+    SPIDER_MAGUS = 126
+    THORNED_HULK = 127
+    BRAMBLE_HULK = 128
+    THRASHER = 129
+    SPIKEFIST = 130
+    GHOUL_LORD = 131
+    NIGHT_LORD = 132
+    DARK_LORD = 133
+    BLOOD_LORD = 134
+    BANISHED = 135
+    DESERT_WING = 136
+    FIEND = 137
+    GLOOMBAT = 138
+    BLOOD_DIVER = 139
+    DARK_FAMILIAR = 140
+    RAT_MAN = 141
+    FETISH = 142
+    FLAYER = 143
+    SOUL_KILLER = 144
+    STYGIAN_DOLL = 145
+    DECKARD_CAIN_146 = 146
+    GHEED = 147
+    AKARA = 148
+    CHICKEN = 149
+    KASHYA = 150
+    RAT = 151
+    ROGUE = 152
+    HELL_METEOR = 153
+    CHARSI = 154
+    WARRIV = 155
+    ANDARIEL = 156
+    BIRD_ONE = 157
+    BIRD_TWO = 158
+    BAT = 159
+    DARK_RANGER = 160
+    VILE_ARCHER = 161
+    DARK_ARCHER = 162
+    BLACK_ARCHER = 163
+    FLESH_ARCHER = 164
+    DARK_SPEARWOMAN = 165
+    VILE_LANCER = 166
+    DARK_LANCER = 167
+    BLACK_LANCER = 168
+    FLESH_LANCER = 169
+    SKELETON_ARCHER = 170
+    RETURNED_ARCHER = 171
+    BONE_ARCHER = 172
+    BURNING_DEAD_ARCHER = 173
+    HORROR_ARCHER = 174
+    WARRIV_2 = 175
+    ATMA = 176
+    DROGNAN = 177
+    FARA = 178
+    COW = 179
+    SAND_MAGGOT_YOUNG = 180
+    ROCK_WORM_YOUNG = 181
+    DEVOURER_YOUNG = 182
+    GIANT_LAMPREY_YOUNG = 183
+    WORLD_KILLER_YOUNG = 184
+    CAMEL = 185
+    BLUNDERBORE = 186
+    GORBELLY = 187
+    MAULER = 188
+    URDAR = 189
+    SAND_MAGGOT_EGG = 190
+    ROCK_WORM_EGG = 191
+    DEVOURER_EGG = 192
+    GIANT_LAMPREY_EGG = 193
+    WORLD_KILLER_EGG = 194
+    ACT_2_MAN = 195
+    ACT_2_WOMAN = 196
+    ACT_2_CHILD = 197
+    GREIZ = 198
+    ELZIX = 199
+    GEGLASH = 200
+    JERHYN = 201
+    LYSANDER = 202
+    ACT_2_GUARD = 203
+    ACT_2_VENDOR_ONE = 204
+    ACT_2_VENDOR_TWO = 205
+    FOUL_CROW_NEST = 206
+    BLOOD_HAWK_NEST = 207
+    BLACK_VULTURE_NEST = 208
+    CLOUD_STALKER_NEST = 209
+    MESHIF = 210
+    DURIEL = 211
+    UNDEAD_RAT_MAN = 212
+    UNDEAD_FETISH = 213
+    UNDEAD_FLAYER = 214
+    UNDEAD_SOUL_KILLER = 215
+    UNDEAD_STYGIAN_DOLL = 216
+    UNUSED_217 = 217
+    UNUSED_218 = 218
+    UNUSED_219 = 219
+    UNUSED_220 = 220
+    UNUSED_221 = 221
+    UNUSED_222 = 222
+    UNUSED_223 = 223
+    UNUSED_224 = 224
+    UNUSED_225 = 225
+    UNUSED_226 = 226
+    MAGGOT = 227
+    MUMMY_GENERATOR = 228
+    RADAMENT = 229
+    UNUSED_230 = 230
+    UNUSED_231 = 231
+    UNUSED_232 = 232
+    UNUSED_233 = 233
+    FLYING_SCIMITAR = 234
+    ZAKARUMITE = 235
+    FAITHFUL = 236
+    ZEALOT = 237
+    SEXTON = 238
+    CANTOR = 239
+    HEIROPHANT_240 = 240
+    HEIROPHANT_241 = 241
+    MEPHISTO = 242
+    DIABLO = 243
+    DECKARD_CAIN_244 = 244
+    DECKARD_CAIN_245 = 245
+    DECKARD_CAIN_246 = 246
+    SWAMP_DWELLER = 247
+    BOG_CREATURE = 248
+    SLIME_PRINCE = 249
+    SUMMONER = 250
+    TYRAEL = 251
+    ASHEARA = 252
+    HRATLI = 253
+    ALKOR = 254
+    ORMUS = 255
+    IZUAL = 256
+    HALBU = 257
+    WATER_WATCHER_LIMB = 258
+    RIVER_STALKER_LIMB = 259
+    STYGIAN_WATCHER_LIMB = 260
+    WATER_WATCHER_HEAD = 261
+    RIVER_STALKER_HEAD = 262
+    STYGIAN_WATCHER_HEAD = 263
+    MESHIF_264 = 264
+    DECKARD_CAIN_265 = 265
+    NAVI = 266
+    BLOODRAVEN = 267
+    BUG = 268
+    SCORPION = 269
+    ROGUE_SCOUT = 270
+    ROGUE_HIRE = 271
+    ROGUE_OTHER = 272
+    GARGOYLE_TRAP = 273
+    RETURNED_MAGE = 274
+    BONE_MAGE = 275
+    BURNING_DEAD_MAGE = 276
+    HORROR_MAGE = 277
+    RAT_MAN_SHAMAN = 278
+    FETISH_SHAMAN = 279
+    FLAYER_SHAMAN = 280
+    SOUL_KILLER_SHAMAN = 281
+    STYGIAN_DOLL_SHAMAN = 282
+    LARVA = 283
+    SAND_MAGGOT_QUEEN = 284
+    ROCK_WORM_QUEEN = 285
+    DEVOURER_QUEEN = 286
+    GIANT_LAMPREY_QUEEN = 287
+    WORLD_KILLER_QUEEN = 288
+    CLAY_GOLEM = 289
+    BLOOD_GOLEM = 290
+    IRON_GOLEM = 291
+    FIRE_GOLEM = 292
+    FAMILIAR = 293
+    ACT_3_MAN = 294
+    NIGHT_MARAUDER = 295
+    ACT_3_WOMAN = 296
+    NATALYA = 297
+    FLESH_SPAWNER = 298
+    STYGIAN_HAG = 299
+    GROTESQUE = 300
+    VILE_CHILD_1 = 301
+    VILE_CHILD_2 = 302
+    VILE_CHILD_3 = 303
+    FINGER_MAGE_1 = 304
+    FINGER_MAGE_2 = 305
+    FINGER_MAGE_3 = 306
+    REGURGITATOR_1 = 307
+    REGURGITATOR_2 = 308
+    REGURGITATOR_3 = 309
+    DOOM_KNIGHT_1 = 310
+    DOOM_KNIGHT_2 = 311
+    DOOM_KNIGHT_3 = 312
+    QUILL_BEAR_1 = 313
+    QUILL_BEAR_2 = 314
+    QUILL_BEAR_3 = 315
+    QUILL_BEAR_4 = 316
+    QUILL_BEAR_5 = 317
+    SNAKE = 318
+    PARROT = 319
+    FISH = 320
+    EVIL_HOLE_1 = 321
+    EVIL_HOLE_2 = 322
+    EVIL_HOLE_3 = 323
+    EVIL_HOLE_4 = 324
+    EVIL_HOLE_5 = 325
+    TRAP_FIREBOLT = 326
+    TRAP_HORZ_MISSILE = 327
+    TRAP_VERT_MISSILE = 328
+    TRAP_POISON_CLOUD = 329
+    TRAP_LIGHTNING = 330
+    ACT2_GUARD_2 = 331
+    INVISO_SPAWNER = 332
+    DIABLO_CLONE = 333
+    SUCKER_NEST_1 = 334
+    SUCKER_NEST_2 = 335
+    SUCKER_NEST_3 = 336
+    SUCKER_NEST_4 = 337
+    ACT2_HIRE = 338
+    MINI_SPIDER = 339
+    BONE_PRISON_1 = 340
+    BONE_PRISON_2 = 341
+    BONE_PRISON_3 = 342
+    BONE_PRISON_4 = 343
+    BONE_WALL = 344
+    COUNCIL_MEMBER_1 = 345
+    COUNCIL_MEMBER_2 = 346
+    COUNCIL_MEMBER_3 = 347
+    TURRET_1 = 348
+    TURRET_2 = 349
+    TURRET_3 = 350
+    HYDRA_1 = 351
+    HYDRA_2 = 352
+    HYDRA_3 = 353
+    TRAP_MELEE = 354
+    SEVEN_TOMBS = 355
+    DOPPLEZON = 356
+    VALKYRIE = 357
+    ACT2_GUARD_3 = 358
+    ACT3_HIRE = 359
+    MEGA_DEMON_1 = 360
+    MEGA_DEMON_2 = 361
+    MEGA_DEMON_3 = 362
+    NECRO_SKELETON = 363
+    NECRO_MAGE = 364
+    GRISWOLD = 365
+    COMPELLING_ORB = 366
+    TYRAEL_2 = 367
+    DARK_WANDERER = 368
+    TRAP_NOVA = 369
+    SPIRIT_MUMMY = 370
+    LIGHTNING_SPIRE = 371
+    FIRE_TOWER = 372
+    SLINGER_1 = 373
+    SLINGER_2 = 374
+    SLINGER_3 = 375
+    SLINGER_4 = 376
+    ACT2_GUARD_4 = 377
+    ACT2_GUARD_5 = 378
+    SKMAGE_COLD_1 = 379
+    SKMAGE_COLD_2 = 380
+    SKMAGE_COLD_3 = 381
+    SKMAGE_COLD_4 = 382
+    SKMAGE_FIRE_1 = 383
+    SKMAGE_FIRE_2 = 384
+    SKMAGE_FIRE_3 = 385
+    SKMAGE_FIRE_4 = 386
+    SKMAGE_LTNG_1 = 387
+    SKMAGE_LTNG_2 = 388
+    SKMAGE_LTNG_3 = 389
+    SKMAGE_LTNG_4 = 390
+    HELL_BOVINE = 391
+    WINDOW_1 = 392
+    WINDOW_2 = 393
+    SLINGER_5 = 394
+    SLINGER_6 = 395
+    FETISH_BLOW_1 = 396
+    FETISH_BLOW_2 = 397
+    FETISH_BLOW_3 = 398
+    FETISH_BLOW_4 = 399
+    FETISH_BLOW_5 = 400
+    MEPHISTO_SPIRIT = 401
+    THE_SMITH = 402
+    TRAPPED_SOUL_403 = 403
+    TRAPPED_SOUL_404 = 404
+    JAMELLA = 405
+    IZUAL_406 = 406
+    RAT_MAN_407 = 407
+    MALACHAI = 408
+    THE_FEATURE_CREEP = 409
+    WAKE_OF_DESTRUCTION = 410
+    CHARGED_BOLT_SENTRY = 411
+    LIGHTNING_SENTRY = 412
+    BLADE_CREEPER = 413
+    INVIS_PET = 414
+    INFERNO_SENTRY = 415
+    DEATH_SENTRY = 416
+    SHADOW_WARRIOR = 417
+    SHADOW_MASTER = 418
+    DRUID_HAWK = 419
+    DRUID_SPIRIT_WOLF = 420
+    DRUID_FENRIS = 421
+    SPIRIT_OF_BARBS = 422
+    HEART_OF_WOLVERINE = 423
+    OAK_SAGE = 424
+    DRUID_PLAGUE_POPPY = 425
+    DRUID_CYCLE_OF_LIFE = 426
+    VINE_CREATURE = 427
+    DRUID_BEAR = 428
+    EAGLE = 429
+    WOLF = 430
+    BEAR = 431
+    BARRICADE_DOOR_432 = 432
+    BARRICADE_DOOR_433 = 433
+    PRISON_DOOR = 434
+    BARRICADE_TOWER = 435
+    ROT_WALKER = 436
+    REANIMATED_HORDE = 437
+    PROWLING_DEAD = 438
+    UNHOLY_CORPSE = 439
+    DEFILED_WARRIOR = 440
+    SIEGE_BEAST = 441
+    CRUSH_BIEST = 442
+    BLOOD_BRINGER = 443
+    GORE_BEARER = 444
+    DEAMON_STEED = 445
+    SNOW_YETI_1 = 446
+    SNOW_YETI_2 = 447
+    SNOW_YETI_3 = 448
+    SNOW_YETI_4 = 449
+    WOLF_RIDER_1 = 450
+    WOLF_RIDER_2 = 451
+    WOLF_RIDER_3 = 452
+    MINIONEXP = 453
+    SLAYEREXP = 454
+    ICE_BOAR = 455
+    FIRE_BOAR = 456
+    HELL_SPAWN = 457
+    ICE_SPAWN = 458
+    GREATER_HELL_SPAWN = 459
+    GREATER_ICE_SPAWN = 460
+    FANATIC_MINION = 461
+    BERSERK_SLAYER = 462
+    CONSUMED_ICE_BOAR = 463
+    CONSUMED_FIRE_BOAR = 464
+    FRENZIED_HELL_SPAWN = 465
+    FRENZIED_ICE_SPAWN = 466
+    INSANE_HELL_SPAWN = 467
+    INSANE_ICE_SPAWN = 468
+    SUCCUBUSEXP = 469
+    VILE_TEMPTRESS = 470
+    STYGIAN_HARLOT = 471
+    HELL_TEMPTRESS = 472
+    BLOOD_TEMPTRESS = 473
+    DOMINUS = 474
+    VILE_WITCH = 475
+    STYGIAN_FURY = 476
+    BLOOD_WITCH = 477
+    HELL_WITCH = 478
+    OVER_SEER = 479
+    LASHER = 480
+    OVER_LORD = 481
+    BLOOD_BOSS = 482
+    HELL_WHIP = 483
+    MINION_SPAWNER = 484
+    MINION_SLAYER_SPAWNER = 485
+    MINION_ICE_FIRE_BOAR_SPAWNER_486 = 486
+    MINION_ICE_FIRE_BOAR_SPAWNER_487 = 487
+    MINION_ICE_HELL_SPAWN_SPAWNER_488 = 488
+    MINION_ICE_FIRE_BOAR_SPAWNER_489 = 489
+    MINION_ICE_FIRE_BOAR_SPAWNER_490 = 490
+    MINION_ICE_HELL_SPAWN_SPAWNER_491 = 491
+    IMP_1 = 492
+    IMP_2 = 493
+    IMP_3 = 494
+    IMP_4 = 495
+    IMP_5 = 496
+    CATAPULT_S = 497
+    CATAPULT_E = 498
+    CATAPULT_SIEGE = 499
+    CATAPULT_W = 500
+    FROZEN_HORROR_1 = 501
+    FROZEN_HORROR_2 = 502
+    FROZEN_HORROR_3 = 503
+    FROZEN_HORROR_4 = 504
+    FROZEN_HORROR_5 = 505
+    BLOOD_LORD_1 = 506
+    BLOOD_LORD_2 = 507
+    BLOOD_LORD_3 = 508
+    BLOOD_LORD_4 = 509
+    BLOOD_LORD_5 = 510
+    LARZUK = 511
+    DREHYA_512 = 512
+    MALAH = 513
+    NIHLATHAK_TOWN = 514
+    QUAL_KEHK = 515
+    CATAPULT_SPOTTER_S = 516
+    CATAPULT_SPOTTER_E = 517
+    CATAPULT_SPOTTER_SIEGE = 518
+    CATAPULT_SPOTTER_W = 519
+    DECKARD_CAIN_520 = 520
+    TYRAEL_521 = 521
+    ACT_5_COMBATANT_1 = 522
+    ACT_5_COMBATANT_2 = 523
+    BARRICADE_WALL_RIGHT = 524
+    BARRICADE_WALL_LEFT = 525
+    NIHLATHAK = 526
+    DREHYA_527 = 527
+    EVIL_HUT = 528
+    DEATH_MAULER_1 = 529
+    DEATH_MAULER_2 = 530
+    DEATH_MAULER_3 = 531
+    DEATH_MAULER_4 = 532
+    DEATH_MAULER_5 = 533
+    POW = 534
+    ACT_5_TOWNGUARD_1 = 535
+    ACT_5_TOWNGUARD_2 = 536
+    ANCIENT_STATUE_1 = 537
+    ANCIENT_STATUE_2 = 538
+    ANCIENT_STATUE_3 = 539
+    ANCIENT_BARBARIAN_1 = 540
+    ANCIENT_BARBARIAN_2 = 541
+    ANCIENT_BARBARIAN_3 = 542
+    BAAL_THRONE = 543
+    BAAL_CRAB = 544
+    BAAL_TAUNT = 545
+    PUTRID_DEFILER_1 = 546
+    PUTRID_DEFILER_2 = 547
+    PUTRID_DEFILER_3 = 548
+    PUTRID_DEFILER_4 = 549
+    PUTRID_DEFILER_5 = 550
+    PAIN_WORM_1 = 551
+    PAIN_WORM_2 = 552
+    PAIN_WORM_3 = 553
+    PAIN_WORM_4 = 554
+    PAIN_WORM_5 = 555
+    BUNNY = 556
+    COUNCIL_MEMBER_557 = 557
+    VENOM_LORD_558 = 558
+    BAAL_CRAB_TO_STAIRS = 559
+    ACT_5_HIRELING_1HS = 560
+    ACT_5_HIRELING_2HS = 561
+    BAAL_TENTACLE_1 = 562
+    BAAL_TENTACLE_2 = 563
+    BAAL_TENTACLE_3 = 564
+    BAAL_TENTACLE_4 = 565
+    BAAL_TENTACLE_5 = 566
+    INJURED_BARBARIAN_1 = 567
+    INJURED_BARBARIAN_2 = 568
+    INJURED_BARBARIAN_3 = 569
+    BAAL_CRAB_CLONE = 570
+    BAALS_MINION_1 = 571
+    BAALS_MINION_2 = 572
+    BAALS_MINION_3 = 573
+    WORLDSTONE_EFFECT = 574
+    BURNING_DEAD_ARCHER_575 = 575
+    BONE_ARCHER_576 = 576
+    BURNING_DEAD_ARCHER_577 = 577
+    RETURNED_ARCHER_578 = 578
+    HORROR_ARCHER_579 = 579
+    AFFLICTED_580 = 580
+    TAINTED_581 = 581
+    MISSHAPEN_582 = 582
+    DISFIGURED_583 = 583
+    DAMNED_584 = 584
+    MOON_CLAN_585 = 585
+    NIGHT_CLAN_586 = 586
+    HELL_CLAN_587 = 587
+    BLOOD_CLAN_588 = 588
+    DEATH_CLAN_589 = 589
+    FOUL_CROW_590 = 590
+    BLOOD_HAWK_591 = 591
+    BLACK_RAPTOR_592 = 592
+    CLOUD_STALKER_593 = 593
+    CLAW_VIPER_594 = 594
+    PIT_VIPER_595 = 595
+    SALAMANDER_596 = 596
+    TOMB_VIPER_597 = 597
+    SERPENT_MAGUS_598 = 598
+    MARAUDER_599 = 599
+    INFIDEL_600 = 600
+    SAND_RAIDER_601 = 601
+    INVADER_602 = 602
+    ASSAILANT_603 = 603
+    DEATH_MAULER_604 = 604
+    QUILL_RAT_605 = 605
+    SPIKE_FIEND_606 = 606
+    RAZOR_SPINE_607 = 607
+    CARRION_BIRD_608 = 608
+    THORNED_HULK_609 = 609
+    SLINGER_610 = 610
+    SLINGER_611 = 611
+    SLINGER_612 = 612
+    VILE_ARCHER_613 = 613
+    DARK_ARCHER_614 = 614
+    VILE_LANCER_615 = 615
+    DARK_LANCER_616 = 616
+    BLACK_LANCER_617 = 617
+    BLUNDERBORE_618 = 618
+    MAULER_619 = 619
+    RETURNED_MAGE_620 = 620
+    BURNING_DEAD_MAGE_621 = 621
+    RETURNED_MAGE_622 = 622
+    HORROR_MAGE_623 = 623
+    BONE_MAGE_624 = 624
+    HORROR_MAGE_625 = 625
+    HORROR_MAGE_626 = 626
+    HUNTRESS_627 = 627
+    SABER_CAT_628 = 628
+    CAVE_LEAPER_629 = 629
+    TOMB_CREEPER_630 = 630
+    GHOST_631 = 631
+    WRAITH_632 = 632
+    SPECTER_633 = 633
+    SUCCUBUSEXP_634 = 634
+    HELL_TEMPTRESS_635 = 635
+    DOMINUS_636 = 636
+    HELL_WITCH_637 = 637
+    VILE_WITCH_638 = 638
+    GLOAM_639 = 639
+    BLACK_SOUL_640 = 640
+    BURNING_SOUL_641 = 641
+    CARVER_642 = 642
+    DEVILKIN_643 = 643
+    DARK_ONE_644 = 644
+    CARVER_SHAMAN_645 = 645
+    DEVILKIN_SHAMAN_646 = 646
+    DARK_SHAMAN_647 = 647
+    BONE_WARRIOR_648 = 648
+    RETURNED_649 = 649
+    GLOOMBAT_650 = 650
+    FIEND_651 = 651
+    BLOOD_LORD_652 = 652
+    BLOOD_LORD_654 = 653
+    SCARAB_654 = 654
+    STEEL_WEEVIL_655 = 655
+    FLAYER_656 = 656
+    STYGIAN_DOLL_657 = 657
+    SOUL_KILLER_658 = 658
+    FLAYER_659 = 659
+    STYGIAN_DOLL_660 = 660
+    SOUL_KILLER_661 = 661
+    FLAYER_SHAMAN_662 = 662
+    STYGIAN_DOLL_SHAMAN_663 = 663
+    SOUL_KILLER_SHAMAN_664 = 664
+    TEMPLE_GUARD_665 = 665
+    TEMPLE_GUARD_666 = 666
+    GUARDIAN_667 = 667
+    UNRAVELER_668 = 668
+    HORADRIM_ANCIENT_669 = 669
+    HORADRIM_ANCIENT_670 = 670
+    ZEALOT_671 = 671
+    ZEALOT_672 = 672
+    HEIROPHANT_673 = 673
+    HEIROPHANT_674 = 674
+    GROTESQUE_675 = 675
+    FLESH_SPAWNER_676 = 676
+    GROTESQUE_WYRM_677 = 677
+    FLESH_BEAST_678 = 678
+    WORLD_KILLER_679 = 679
+    WORLD_KILLER_YOUNG_680 = 680
+    WORLD_KILLER_EGG_681 = 681
+    SLAYEREXP_682 = 682
+    HELL_SPAWN_683 = 683
+    GREATER_HELL_SPAWN_684 = 684
+    ARACH_685 = 685
+    BALROG_686 = 686
+    PIT_LORD_687 = 687
+    IMP_1_688 = 688
+    IMP_4_689 = 689
+    UNDEAD_STYGIAN_DOLL_690 = 690
+    UNDEAD_SOUL_KILLER_691 = 691
+    STRANGLER_692 = 692
+    STORM_CASTER_693 = 693
+    MAW_FIEND_694 = 694
+    BLOOD_LORD_695 = 695
+    GHOUL_LORD_696 = 696
+    DARK_LORD_697 = 697
+    UNHOLY_CORPSE_698 = 698
+    DOOM_KNIGHT_699 = 699
+    DOOM_KNIGHT_700 = 700
+    OBLIVION_KNIGHT_701 = 701
+    OBLIVION_KNIGHT_702 = 702
+    CADAVER_703 = 703
+    MEPHISTO_704 = 704
+    DIABLO_705 = 705
+    IZUAL_706 = 706
+    LILITH_707 = 707
+    DURIEL_708 = 708
+    BAAL_CRAB_709 = 709
+    EVIL_HUT_710 = 710
+    DEMON_HOLE = 711
+    PIT_LORD_712 = 712
+    OBLIVION_KNIGHT_713 = 713
+    IMP_4_714 = 714
+    HELL_SWARM_715 = 715
+    WORLD_KILLER_716 = 716
+    ARACH_717 = 717
+    STEEL_WEEVIL_718 = 718
+    HELL_TEMPTRESS_719 = 719
+    VILE_WITCH_720 = 720
+    FLESH_HUNTER_721 = 721
+    DARK_ARCHER_722 = 722
+    BLACK_LANCER_723 = 723
+    HELL_WHIP_724 = 724
+    RETURNED_725 = 725
+    HORROR_ARCHER_726 = 726
+    BURNING_DEAD_MAGE_727 = 727
+    HORROR_MAGE_728 = 728
+    BONE_MAGE_729 = 729
+    HORROR_MAGE_730 = 730
+    DARK_LORD_731 = 731
+    SPECTER_732 = 732
+    BURNING_SOUL_733 = 733
 
 @dataclass
 class MonsterTier:
@@ -484,34 +1609,674 @@ class MonsterTier:
 class Monster(Unit):
     @property
     def name(self) -> str:
-        addr = self._internal_unit.pMonsterDatawName
+        addr = self._internal.pMonsterDatawName
         if not addr:
             return ""
         return wstring_at(addr)
 
     @property
-    def type(self) -> int:
-        return self._internal_unit.dwTxtFileNo
+    def type(self) -> MonsterType:
+        return MonsterType(self._internal.dwTxtFileNo)
 
     @property
     def mode(self) -> int:
-        return self._internal_unit.dwMode
+        return self._internal.dwMode
 
     @property
     def position(self) -> Position:
         return Position(
-            self._internal_unit.pPathxPos,
-            self._internal_unit.pPathyPos
+            self._internal.pPathxPos,
+            self._internal.pPathyPos
         )
 
     @property
     def tier(self) -> MonsterTier:
         return MonsterTier(
-            normal = self._internal_unit.pMonsterDatafNormal,
-            minion = self._internal_unit.pMonsterDatafMinion,
-            champion = self._internal_unit.pMonsterDatafChamp,
-            boss =  self._internal_unit.pMonsterDatafBoss
+            normal = self._internal.pMonsterDatafNormal,
+            minion = self._internal.pMonsterDatafMinion,
+            champion = self._internal.pMonsterDatafChamp,
+            boss =  self._internal.pMonsterDatafBoss
         )
+
+#####################################
+## objects                         ##
+#####################################
+class ObjectType(IntEnum):
+    UNKNOWN = -1
+    @classmethod
+    def _missing_(cls, value):
+        return cls.UNKNOWN
+
+    DUMMY_0 = 0
+    CASKET_1 = 1
+    SHRINE_2 = 2
+    CASKET_3 = 3
+    LARGE_URN_4 = 4
+    CHEST_5 = 5
+    CHEST_6 = 6
+    BARREL_7 = 7
+    TOWER_TOME_8 = 8
+    URN_9 = 9
+    BENCH = 10
+    BARREL_11 = 11
+    ROGUE_FOUNTAIN = 12
+    DOOR_13 = 13
+    DOOR_14 = 14
+    DOOR_15 = 15
+    DOOR_16 = 16
+    STONE_ALPHA_17 = 17
+    STONE_BETA_18 = 18
+    STONE_GAMMA_19 = 19
+    STONE_DELTA_20 = 20
+    STONE_LAMBDA_21 = 21
+    STONE_THETA_22 = 22
+    DOOR_23 = 23
+    DOOR_24 = 24
+    DOOR_25 = 25
+    GIBBET_26 = 26
+    DOOR_27 = 27
+    HOLE_ANIM_28 = 28
+    BRAZIER = 29
+    INIFUSS_30 = 30
+    FOUNTAIN = 31
+    CRUCIFIX = 32
+    CANDLES_ONE = 33
+    CANDLES_TWO = 34
+    STANDARD_ONE = 35
+    STANDARD_TWO = 36
+    TIKI_TORCH = 37
+    DUMMY_38 = 38
+    FIRE_39 = 39
+    DUMMY_40 = 40
+    DUMMY_41 = 41
+    DUMMY_42 = 42
+    DUMMY_43 = 43
+    DUMMY_44 = 44
+    AMBIENT_SOUND_45 = 45
+    CRATE_46 = 46
+    DOOR_47 = 47
+    DUMMY_48 = 48
+    DUMMY_49 = 49
+    CASKET_50 = 50
+    CASKET_51 = 51
+    URN_52 = 52
+    CASKET_53 = 53
+    ROGUE_CORPSE_54 = 54
+    ROGUE_CORPSE_55 = 55
+    ROGUE_CORPSE_56 = 56
+    CORPSE_ON_STICK_57 = 57
+    CORPSE_ON_STICK_58 = 58
+    PORTAL_59 = 59
+    PORTAL_60 = 60
+    DUMMY_61 = 61
+    DOOR_62 = 62
+    DOOR_63 = 63
+    DOOR_64 = 64
+    DUMMY_65 = 65
+    DUMMY_66 = 66
+    DUMMY_67 = 67
+    DUMMY_68 = 68
+    DUMMY_69 = 69
+    DUMMY_70 = 70
+    DUMMY_71 = 71
+    DUMMY_72 = 72
+    DUMMY_73 = 73
+    TRAPP_DOOR_74 = 74
+    DOOR_75 = 75
+    DUMMY_76 = 76
+    SHRINE_77 = 77
+    DUMMY_78 = 78
+    CASKET_79 = 79
+    OBELISK_80 = 80
+    SHRINE_81 = 81
+    DUMMY_82 = 82
+    SHRINE_83 = 83
+    SHRINE_84 = 84
+    SHRINE_85 = 85
+    DUMMY_86 = 86
+    CHEST3_87 = 87
+    CHEST3_88 = 88
+    SARCOPHAGUS_89 = 89
+    OBELISK_90 = 90
+    DOOR_91 = 91
+    DOOR_92 = 92
+    SHRINE_93 = 93
+    LARGE_URN_94 = 94
+    LARGE_URN_95 = 95
+    SHRINE_96 = 96
+    SHRINE_97 = 97
+    DOOR_98 = 98
+    DOOR_99 = 99
+    DURIELS_LAIR_100 = 100
+    DUMMY_101 = 101
+    DUMMY_102 = 102
+    DUMMY_103 = 103
+    ARMOR_STAND_104 = 104
+    ARMOR_STAND_105 = 105
+    WEAPON_RACK_106 = 106
+    WEAPON_RACK_107 = 107
+    MALUS_108 = 108
+    SHRINE_109 = 109
+    NOT_USED_110 = 110
+    WELL_111 = 111
+    NOT_USED_112 = 112
+    WELL_113 = 113
+    NOT_USED_114 = 114
+    WELL_115 = 115
+    SHRINE_116 = 116
+    DUMMY_117 = 117
+    WELL_118 = 118
+    WAYPOINT_119 = 119
+    DUMMY_120 = 120
+    JERHYN_121 = 121
+    JERHYN_122 = 122
+    SHRINE_123 = 123
+    SHRINE_124 = 124
+    HIDDEN_STASH_125 = 125
+    SKULL_PILE_126 = 126
+    HIDDEN_STASH_127 = 127
+    HIDDEN_STASH_128 = 128
+    DOOR_129 = 129
+    WELL_130 = 130
+    DUMMY_131 = 131
+    WELL_132 = 132
+    SHRINE_133 = 133
+    SHRINE_134 = 134
+    SHRINE_135 = 135
+    SHRINE_136 = 136
+    WELL_137 = 137
+    WELL_138 = 138
+    CHEST_139 = 139
+    CHEST_140 = 140
+    CHEST_141 = 141
+    JUG_142 = 142
+    JUG_143 = 143
+    CHEST_144 = 144
+    WAYPOINT_145 = 145
+    CHEST_146 = 146
+    CHEST_147 = 147
+    CHEST_148 = 148
+    TAINTED_SUN_ALTAR_149 = 149
+    SHRINE_150 = 150
+    SHRINE_151 = 151
+    ORIFICE_152 = 152
+    DOOR_153 = 153
+    CORPSE_154 = 154
+    HIDDEN_STASH_155 = 155
+    WAYPOINT_156 = 156
+    WAYPOINT_157 = 157
+    SKELETON_158 = 158
+    HIDDEN_STASH_159 = 159
+    FIRE_160 = 160
+    FIRE_161 = 161
+    FIRE_162 = 162
+    HIDING_SPOT_163 = 163
+    SHRINE_164 = 164
+    SHRINE_165 = 165
+    SHRINE_166 = 166
+    SHRINE_167 = 167
+    SHRINE_168 = 168
+    HOLLOW_LOG_169 = 169
+    SHRINE_170 = 170
+    SKELETON_171 = 171
+    SHRINE_172 = 172
+    SHRINE_173 = 173
+    LOOSE_ROCK_174 = 174
+    LOOSE_BOULDER_175 = 175
+    CHEST_176 = 176
+    CHEST_177 = 177
+    GUARD_CORPSE_178 = 178
+    BOOKSHELF_179 = 179
+    BOOKSHELF_180 = 180
+    CHEST_181 = 181
+    COFFIN_182 = 182
+    CHEST_183 = 183
+    SHRINE_184 = 184
+    STASH_185 = 185
+    STASH_186 = 186
+    STASH_187 = 187
+    STASH_188 = 188
+    DUMMY_189 = 189
+    SHRINE_190 = 190
+    SHRINE_191 = 191
+    TELEPORT_PAD_192 = 192
+    LAM_TOME_193 = 193
+    STAIR_194 = 194
+    STAIR_195 = 195
+    A_TRAP_196 = 196
+    SHRINE_197 = 197
+    CHEST_198 = 198
+    SHRINE_199 = 199
+    SHRINE_200 = 200
+    SHRINE_201 = 201
+    SHRINE_202 = 202
+    STASH_203 = 203
+    STASH_204 = 204
+    STASH_205 = 205
+    SHRINE_206 = 206
+    DUMMY_207 = 207
+    BASKET_208 = 208
+    BASKET_209 = 209
+    DUMMY_210 = 210
+    DUMMY_211 = 211
+    DUMMY_212 = 212
+    DUMMY_213 = 213
+    DUMMY_214 = 214
+    DUMMY_215 = 215
+    DUMMY_216 = 216
+    DUMMY_217 = 217
+    DUMMY_218 = 218
+    DUMMY_219 = 219
+    DUMMY_220 = 220
+    DUMMY_221 = 221
+    PILLAR_222 = 222
+    COCOON_223 = 223
+    COCOON_224 = 224
+    SKULL_PILE_225 = 225
+    SHRINE_226 = 226
+    DUMMY_227 = 227
+    DUMMY_228 = 228
+    DOOR_229 = 229
+    DOOR_230 = 230
+    SHRINE_231 = 231
+    SHRINE_232 = 232
+    PILLAR_233 = 233
+    DUMMY_234 = 234
+    DUMMY_235 = 235
+    SHRINE_236 = 236
+    WAYPOINT_237 = 237
+    WAYPOINT_238 = 238
+    BODY_239 = 239
+    CHEST_240 = 240
+    CHEST_241 = 241
+    CHEST_242 = 242
+    CHEST_243 = 243
+    RATNEST_244 = 244
+    BODY_245 = 245
+    RATNEST_246 = 246
+    BED_247 = 247
+    BED_248 = 248
+    MANA_SHRINE_249 = 249
+    A_TRAP_250 = 250
+    GIDBINN_ALTAR_251 = 251
+    GIDBINN_252 = 252
+    DUMMY_253 = 253
+    DUMMY_254 = 254
+    DUMMY_255 = 255
+    DUMMY_256 = 256
+    DUMMY_257 = 257
+    DUMMY_258 = 258
+    DUMMY_259 = 259
+    SHRINE_260 = 260
+    A_TRAP_261 = 261
+    SHRINE_262 = 262
+    SHRINE_263 = 263
+    SHRINE_264 = 264
+    SHRINE_265 = 265
+    GOO_PILE_266 = 266
+    STASH = 267
+    WIRTS_BODY_268 = 268
+    DUMMY_269 = 269
+    CORPSE_270 = 270
+    CORPSE_271 = 271
+    CORPSE_272 = 272
+    DUMMY_273 = 273
+    HIDDEN_STASH_274 = 274
+    SHRINE_275 = 275
+    SHRINE_276 = 276
+    SHRINE_277 = 277
+    SHRINE_278 = 278
+    SHRINE_279 = 279
+    SHRINE_280 = 280
+    SHRINE_281 = 281
+    SHRINE_282 = 282
+    DUMMY_283 = 283
+    SARCOPHAGUS_284 = 284
+    DUMMY_285 = 285
+    DUMMY_286 = 286
+    DUMMY_287 = 287
+    WAYPOINT_288 = 288
+    BED_289 = 289
+    DOOR_290 = 290
+    DOOR_291 = 291
+    DOOR_292 = 292
+    DOOR_293 = 293
+    DOOR_294 = 294
+    DOOR_295 = 295
+    DUMMY_296 = 296
+    DUMMY_297 = 297
+    PORTAL_298 = 298
+    MAGIC_SHRINE_299 = 299
+    MAGIC_SHRINE_300 = 300
+    DUMMY_301 = 301
+    MANA_SHRINE_302 = 302
+    MAGIC_SHRINE_303 = 303
+    TELEPORTATION_PAD_304 = 304
+    TELEPORTATION_PAD_305 = 305
+    TELEPORTATION_PAD_306 = 306
+    DUMMY_307 = 307
+    DUMMY_308 = 308
+    DUMMY_309 = 309
+    DUMMY_310 = 310
+    DUMMY_311 = 311
+    DUMMY_312 = 312
+    DUMMY_313 = 313
+    DEAD_GUARD_314 = 314
+    DEAD_GUARD_315 = 315
+    DEAD_GUARD_316 = 316
+    DEAD_GUARD_317 = 317
+    EUNUCH_318 = 318
+    DUMMY_319 = 319
+    MANA_SHRINE_320 = 320
+    DUMMY_321 = 321
+    WELL_322 = 322
+    WAYPOINT_323 = 323
+    WAYPOINT_324 = 324
+    MAGIC_SHRINE_325 = 325
+    DEAD_BODY_326 = 326
+    DUMMY_327 = 327
+    DUMMY_328 = 328
+    CHEST_329 = 329
+    CHEST_330 = 330
+    CHEST_331 = 331
+    CHEST_332 = 332
+    CHEST_333 = 333
+    CHEST_334 = 334
+    CHEST_335 = 335
+    CHEST_336 = 336
+    STEEG_STONE_337 = 337
+    GUILD_VAULT_338 = 338
+    TROPHY_CASE_339 = 339
+    MESSAGE_BOARD_340 = 340
+    DUMMY_341 = 341
+    PORTAL_342 = 342
+    SHRINE_343 = 343
+    SHRINE_344 = 344
+    DUMMY_345 = 345
+    DUMMY_346 = 346
+    DUMMY_347 = 347
+    DUMMY_348 = 348
+    DUMMY_349 = 349
+    DUMMY_350 = 350
+    DUMMY_351 = 351
+    DUMMY_352 = 352
+    DUMMY_353 = 353
+    CHEST_354 = 354
+    CHEST_355 = 355
+    CHEST_356 = 356
+    TOME_357 = 357
+    FIRE_358 = 358
+    FIRE_359 = 359
+    ROCK_PILE_360 = 360
+    MAGIC_SHRINE_361 = 361
+    BASKET_362 = 362
+    HUNG_SKELETON_363 = 363
+    DUMMY_364 = 364
+    CASKET_365 = 365
+    SEWER_STAIRS_366 = 366
+    SEWER_LEVER_367 = 367
+    DARK_WANDERER_368 = 368
+    DUMMY_369 = 369
+    DUMMY_370 = 370
+    CHEST_371 = 371
+    BONE_CHEST_372 = 372
+    DUMMY_373 = 373
+    DUMMY_374 = 374
+    DUMMY_375 = 375
+    HELLFORGE_376 = 376
+    GUILD_PORTAL_377 = 377
+    DUMMY_378 = 378
+    DUMMY_379 = 379
+    TRAPPED_SOUL_380 = 380
+    TRAPPED_SOUL_381 = 381
+    DUMMY_382 = 382
+    TRAPPED_SOUL_383 = 383
+    TRAPPED_SOUL_384 = 384
+    DUMMY_385 = 385
+    DUMMY_386 = 386
+    CHEST_387 = 387
+    CASKET_388 = 388
+    CHEST_389 = 389
+    CHEST_390 = 390
+    CHEST_391 = 391
+    SEAL_392 = 392
+    SEAL_393 = 393
+    SEAL_394 = 394
+    SEAL_395 = 395
+    SEAL_396 = 396
+    CHEST_397 = 397
+    WAYPOINT_398 = 398
+    FISSURE_399 = 399
+    DUMMY_400 = 400
+    DUMMY_401 = 401
+    WAYPOINT_402 = 402
+    FIRE_403 = 403
+    COMPELLING_ORB_404 = 404
+    CHEST_405 = 405
+    CHEST_406 = 406
+    CHEST_407 = 407
+    DUMMY_408 = 408
+    DUMMY_409 = 409
+    SIEGE_CONTROL_410 = 410
+    PTOX_411 = 411
+    PYOX_412 = 412
+    CHEST_R_413 = 413
+    SHRINE3_WILDERNESS_414 = 414
+    SHRINE2_WILDERNESS_415 = 415
+    HIDDEN_STASH_416 = 416
+    FLAG_WILDERNESS_417 = 417
+    BARREL_WILDERNESS_418 = 418
+    BARREL_WILDERNESS_419 = 419
+    WOOD_CHEST_L_420 = 420
+    SHRINE3_WILDERNESS_421 = 421
+    MANA_SHRINE_422 = 422
+    HEALTH_SHRINE_423 = 423
+    BURIAL_CHEST_L_424 = 424
+    BURIAL_CHEST_R_425 = 425
+    WELL_426 = 426
+    SHRINE2_WILDERNESS_427 = 427
+    SHRINE2_WILDERNESS_428 = 428
+    WAYPOINT_429 = 429
+    CHEST_L_430 = 430
+    WOOD_CHEST_R_431 = 431
+    CHEST_SL_432 = 432
+    CHEST_SR_433 = 433
+    ETORCH1_434 = 434
+    ECFRA_435 = 435
+    ETTR_436 = 436
+    ETORCH2_437 = 437
+    BURNING_BODIES_438 = 438
+    BURNING_PIT_439 = 439
+    TRIBAL_FLAG_440 = 440
+    EFLG_441 = 441
+    CHAN_442 = 442
+    JAR1_443 = 443
+    JAR2_444 = 444
+    JAR3_445 = 445
+    SWINGING_HEADS_446 = 446
+    POLE_447 = 447
+    ANIMATED_SKULL_AND_ROCKPILE_448 = 448
+    GATE_449 = 449
+    PILE_OF_SKULLS_AND_ROCKS_450 = 450
+    HELL_GATE_451 = 451
+    BANNER_1_452 = 452
+    BANNER_2_453 = 453
+    EXPLODING_CHEST_454 = 454
+    CHEST_455 = 455
+    DEATH_POLE_456 = 456
+    L_DEATH_POLE_457 = 457
+    ALTAR_458 = 458
+    DUMMY_459 = 459
+    DUMMY_460 = 460
+    DUMMY_461 = 461
+    DUMMY_462 = 462
+    HIDDEN_STASH_463 = 463
+    HEALTH_SHRINE_464 = 464
+    MANA_SHRINE_465 = 465
+    EVIL_URN_466 = 466
+    ICE_CAVE_JAR1_467 = 467
+    ICE_CAVE_JAR2_468 = 468
+    ICE_CAVE_JAR3_469 = 469
+    ICE_CAVE_JAR4_470 = 470
+    ICE_CAVE_JAR4_471 = 471
+    ICE_CAVE_SHRINE2_472 = 472
+    CAGED_WUSSIE1_473 = 473
+    ANCIENT_STATUE_3_474 = 474
+    ANCIENT_STATUE_1_475 = 475
+    ANCIENT_STATUE_2_476 = 476
+    DEAD_BARBARIAN_477 = 477
+    CLIENT_SMOKE_478 = 478
+    ICE_CAVE_SHRINE2_479 = 479
+    ICE_CAVE_TORCH1_480 = 480
+    ICE_CAVE_TORCH2_481 = 481
+    TTOR_482 = 482
+    MANA_SHRINE_483 = 483
+    HEALTH_SHRINE_484 = 484
+    TOMB1_485 = 485
+    TOMB2_486 = 486
+    TOMB3_487 = 487
+    MAGIC_SHRINE_488 = 488
+    TORCH1_489 = 489
+    TORCH2_490 = 490
+    MANA_SHRINE_491 = 491
+    HEALTH_SHRINE_492 = 492
+    WELL_493 = 493
+    WAYPOINT_494 = 494
+    MAGIC_SHRINE_495 = 495
+    WAYPOINT_496 = 496
+    MAGIC_SHRINE_497 = 497
+    WELL_498 = 498
+    MAGIC_SHRINE2_499 = 499
+    OBJECT1_500 = 500
+    WOOD_CHEST_L_501 = 501
+    WOOD_CHEST_R_502 = 502
+    MAGIC_SHRINE_503 = 503
+    WOOD_CHEST2_L_504 = 504
+    WOOD_CHEST2_R_505 = 505
+    SWINGING_HEADS_506 = 506
+    DEBRIS_507 = 507
+    PENE_508 = 508
+    MAGIC_SHRINE_509 = 509
+    MR_POLE_510 = 510
+    WAYPOINT_511 = 511
+    MAGIC_SHRINE_512 = 512
+    WELL_513 = 513
+    TORCH1_514 = 514
+    TORCH1_515 = 515
+    OBJECT1_516 = 516
+    OBJECT2_517 = 517
+    MR_BOX_518 = 518
+    WELL_519 = 519
+    MAGIC_SHRINE_520 = 520
+    HEALTH_SHRINE_521 = 521
+    MANA_SHRINE_522 = 522
+    RED_LIGHT_523 = 523
+    TOMB1_L_524 = 524
+    TOMB2_L_525 = 525
+    TOMB3_L_526 = 526
+    UBUB_527 = 527
+    SBUB_528 = 528
+    TOMB1_529 = 529
+    TOMB1_L_530 = 530
+    TOMB2_531 = 531
+    TOMB2_L_532 = 532
+    TOMB3_533 = 533
+    TOMB3_L_534 = 534
+    MR_BOX_535 = 535
+    TORCH1_536 = 536
+    TORCH2_537 = 537
+    CANDLES_538 = 538
+    WAYPOINT_539 = 539
+    DEAD_PERSON_540 = 540
+    GROUND_TOMB_541 = 541
+    DUMMY_542 = 542
+    DUMMY_543 = 543
+    GROUND_TOMB_L_544 = 544
+    DEAD_PERSON2_545 = 545
+    ANCIENTS_ALTAR_546 = 546
+    TO_THE_WORLDSTONE_KEEP_LEVEL_1 = 547
+    E_WEAPON_RACK_R_548 = 548
+    E_WEAPON_RACK_L_549 = 549
+    E_ARMOR_STAND_R_550 = 550
+    E_ARMOR_STAND_L_551 = 551
+    TORCH2_552 = 552
+    FUNERAL_PYRE_553 = 553
+    BURNING_LOGS_554 = 554
+    STMA_555 = 555
+    DEAD_PERSON2_556 = 556
+    DUMMY_557 = 557
+    FANA_558 = 558
+    BBQB_559 = 559
+    BTOR_560 = 560
+    DUMMY_561 = 561
+    DUMMY_562 = 562
+    THE_WORLDSTONE_CHAMBER_563 = 563
+    GLACIAL_CAVES_LEVEL_1_564 = 564
+    STR_LAST_CINEMATIC_565 = 565
+    HARROGATH_566 = 566
+    ZOO_567 = 567
+    KEEPER_568 = 568
+    THRONE_OF_DESTRUCTION_569 = 569
+    DUMMY_570 = 570
+    DUMMY_571 = 571
+    DUMMY_572 = 572
+
+DeckardCains = {
+    MonsterType.DECKARD_CAIN_146,
+    MonsterType.DECKARD_CAIN_244,
+    MonsterType.DECKARD_CAIN_245,
+    MonsterType.DECKARD_CAIN_246,
+    MonsterType.DECKARD_CAIN_265,
+    MonsterType.DECKARD_CAIN_520,
+}
+
+TownWaypoints = {
+    ObjectType.WAYPOINT_119,
+    ObjectType.WAYPOINT_156,
+    ObjectType.WAYPOINT_237,
+    ObjectType.WAYPOINT_398,
+    ObjectType.WAYPOINT_429,
+}
+
+Waypoints = {
+    ObjectType.WAYPOINT_119,
+    ObjectType.WAYPOINT_145,
+    ObjectType.WAYPOINT_156,
+    ObjectType.WAYPOINT_157,
+    ObjectType.WAYPOINT_237,
+    ObjectType.WAYPOINT_238,
+    ObjectType.WAYPOINT_288,
+    ObjectType.WAYPOINT_323,
+    ObjectType.WAYPOINT_324,
+    ObjectType.WAYPOINT_398,
+    ObjectType.WAYPOINT_402,
+    ObjectType.WAYPOINT_429,
+    ObjectType.WAYPOINT_494,
+    ObjectType.WAYPOINT_496,
+    ObjectType.WAYPOINT_511,
+    ObjectType.WAYPOINT_539,
+}
+
+class Object(Unit):
+    @property
+    def id(self) -> int:
+        return self._internal.id
+
+    @property
+    def mode(self) -> int:
+        return self._internal.dwMode
+
+    @property
+    def type(self) -> ObjectType:
+        return ObjectType(self._internal.dwTxtFileNo)
+
+    @property
+    def position(self) -> Position:
+        return Position(self._internal.pItemPathdwPosX, self._internal.pItemPathdwPosY)
+
+    @property
+    def act(self) -> int:
+        return self._internal.dwAct
 
 #####################################
 ## items                           ##
@@ -1796,7 +3561,7 @@ class ItemLocation(IntEnum):
 class Item(Unit):
     @property
     def owner(self) -> Optional[Character]:
-        addr = self._internal_unit.pItemDatadpOwner
+        addr = self._internal.pItemDatadpOwner
         if not addr:
             return None
         return Character(game.build_player_unit_from_ptr(addr))
@@ -1804,17 +3569,17 @@ class Item(Unit):
     @property
     def type(self) -> ItemType:
         try:
-            return ItemType(game.get_item_code(self._internal_unit.dwTxtFileNo))
+            return ItemType(game.get_item_code(self._internal.dwTxtFileNo))
         except:
             return ItemType.UNKNOWN
 
     @property
     def level(self) -> int:
-        return self._internal_unit.pItemDatadwItemLevel
+        return self._internal.pItemDatadwItemLevel
 
     @property
     def flags(self) -> ItemFlags:
-        value: int = self._internal_unit.pItemDatadwFlags
+        value: int = self._internal.pItemDatadwFlags
         def check(flag: int) -> bool:
             return (value & flag) == flag
         return ItemFlags(
@@ -1834,18 +3599,18 @@ class Item(Unit):
 
     @property
     def quality(self) -> Quality:
-        return Quality(self._internal_unit.pItemDatadwQuality)
+        return Quality(self._internal.pItemDatadwQuality)
 
     @property
     def position(self) -> Position:
         return Position(
-            self._internal_unit.pItemPathdwPosX,
-            self._internal_unit.pItemPathdwPosY
+            self._internal.pItemPathdwPosX,
+            self._internal.pItemPathdwPosY
         )
 
     @property
     def stats(self) -> list[Stat]:
-        raw_stats = game.get_item_stats(self._internal_unit)
+        raw_stats = game.get_item_stats(self._internal)
         if raw_stats is None:
             return []
 
@@ -1932,6 +3697,21 @@ class CrossElement(Element):
         }
 
 #####################################
+## world                           ##
+#####################################
+class WorldMeta:
+    @property
+    def closest_waypoint(self) -> Optional[Object]:
+        for unit in get_nearby_units():
+            if isinstance(unit, Object):
+                if unit.type in Waypoints:
+                    return unit
+        return None
+
+
+World = WorldMeta()
+
+#####################################
 ## functions                       ##
 #####################################
 def get_game() -> Optional[Game]:
@@ -1949,19 +3729,23 @@ def get_all_controls() -> list[Control]:
     return results
 
 def get_all_items() -> list[Item]:
-    results: list[Item] = []
-    for unit in game.get_item_table():
-        if not unit or unit.id == 0:
-            continue
-        results.append(Item(unit))
-    return results
+    return [u for u in get_nearby_units() if isinstance(u, Item)]
 
 def get_all_monsters() -> list[Monster]:
-    results: list[Monster] = []
-    for unit in game.get_monster_table():
-        if not unit or unit.id == 0:
-            continue
-        results.append(Monster(unit))
+    return [u for u in get_nearby_units() if isinstance(u, Monster)]
+
+def get_nearby_units() -> list[Unit]:
+    results = []
+    for unit in game.get_nearby_units():
+        t = unit.type
+        if t == UnitType.OBJECT:
+            results.append(Object(unit))
+        elif t == UnitType.MONSTER:
+            results.append(Monster(unit))
+        elif t == UnitType.PLAYER:
+            results.append(Character(unit))
+        else:
+            results.append(unit)
     return results
 
 def reveal_automap() -> None:
@@ -2025,7 +3809,7 @@ def loop(loop_type: LoopType, state: ClientState = None):
             case LoopType.FLEX:
                 game.register_flex_loop(wrapped)
             case LoopType.DRAW_AUTOMAP:
-                game.register_draw_automap_loop(wrapped)
+                game.register_draw_automap_loop(func)
             case LoopType.CLIENT_STATE:
                 if not state:
                     warn(f"Missing client state for {func.__name__}")
