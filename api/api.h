@@ -95,6 +95,13 @@ typedef struct {
     uint32_t y;
 } PyPreset;
 
+typedef struct {
+    PyObject_HEAD
+    uint32_t level_x;
+    uint32_t level_y;
+    uint16_t flags;
+} PyTile;
+
 static PyObject *PyUnit_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 static PyObject *py_get_player_unit(PyObject *self, PyObject *args);
 static PyObject *py_get_item_table(PyObject *self, PyObject *args);

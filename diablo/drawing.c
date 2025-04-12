@@ -28,21 +28,19 @@ void world_to_automap(POINT* ptPos, uint32_t x, uint32_t y) {
 
 void draw_automap_text(const struct Element *element) {
     wchar_t* wString = AnsiToUnicode(element->text);
-
-    // if (InRange(*p_D2CLIENT_MouseX, *p_D2CLIENT_MouseY) && GetHoverColor() != Disabled)
-    //     drawColor = hoverColor;
-
     DWORD oldFont = SetTextSize(0);
     POINT point;
     world_to_automap(&point, element->x1, element->y1);
-    // DrawText(wString, GetX(), GetY() + GetYSize(), drawColor, 0);
     DrawTextEx2(wString, point.x, point.y, element->color, 0);
     SetTextSize(oldFont);
     free(wString);
 }
 
 void draw_automap_line(const struct Element *element) {
-	DrawLine(element->x1, element->y1, element->x2, element->y2, element->color, -1);
+    POINT p1, p2;
+    world_to_automap(&p1, element->x1, element->y1);
+    world_to_automap(&p2, element->x2, element->y2);
+    DrawLine(p1.x, p1.y, p2.x, p2.y, element->color, -1);
 }
 
 void draw_automap_cross(const struct Element *element) {

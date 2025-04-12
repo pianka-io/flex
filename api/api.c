@@ -634,11 +634,6 @@ static PyObject *build_control(struct Control *c) {
         Py_RETURN_NONE;
     }
 
-    write_log("DBG", "build_control: c=%p", c);
-
-    write_log("DBG", "  dwType: %u", c->dwType);
-    write_log("DBG", "  Pos: (%u, %u), Size: (%u, %u)", c->dwPosX, c->dwPosY, c->dwSizeX, c->dwSizeY);
-
     PyControl *obj = PyObject_New(PyControl, &PyControlType);
     if (!obj) {
         write_log("ERR", "Failed to allocate PyControl object");
@@ -661,10 +656,10 @@ static PyObject *py_get_all_controls(PyObject *self, PyObject *args) {
     int count = 0;
     int max_controls = 500;
 
-    write_log("DBG", "Starting get_all_controls loop, first_control=%p", first_control);
+    // write_log("DBG", "Starting get_all_controls loop, first_control=%p", first_control);
 
     while (cur && count < max_controls) {
-        write_log("DBG", "Loop %d: current control ptr = %p", count, cur);
+        // write_log("DBG", "Loop %d: current control ptr = %p", count, cur);
 
         PyObject *py_control = build_control(cur);
         if (!py_control) {
@@ -684,7 +679,7 @@ static PyObject *py_get_all_controls(PyObject *self, PyObject *args) {
         write_log("WRN", "get_all_controls loop hit max limit (%d)", max_controls);
     }
 
-    write_log("DBG", "Finished get_all_controls with %d controls", count);
+    // write_log("DBG", "Finished get_all_controls with %d controls", count);
     return list;
 }
 
@@ -981,21 +976,38 @@ static PyObject *py_get_level_map_rooms(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-    if (!py_level || !py_level->level || !py_level->level->pRoom2First) {
+    struct Level *level = py_level->level;
+    if (!level || !level->pRoom2First) {
         Py_RETURN_NONE;
     }
+
+    // if (level->pMisc && level->pRoom2First && !level->pRoom2First->pRoom1) {
+    //     write_log("INF", "InitLevel");
+    //     InitLevel(level);
+    // }
 
     PyObject *list = PyList_New(0);
     if (!list) return NULL;
 
-    struct Room2 *room2 = py_level->level->pRoom2First;
-    while (room2) {
-        PyObject *room = build_map_room_from_room2(room2);
-        if (room) {
-            PyList_Append(list, room);
-            Py_DECREF(room);
+    for (struct Room2 *room2 = level->pRoom2First; room2; room2 = room2->pRoom2Next) {
+        bool added = false;
+
+        if (!room2->pRoom1 && (room2->dwRoomFlags & 1)) {
+            AddRoomData(level->pMisc->pAct, level->dwLevelNo, room2->dwPosX, room2->dwPosY, room2);
+            added = true;
         }
-        room2 = room2->pRoom2Next;
+
+        if (room2->pRoom1) {
+            PyObject *room = build_map_room_from_room2(room2);
+            if (room) {
+                PyList_Append(list, room);
+                Py_DECREF(room);
+            }
+        }
+
+        if (added) {
+            // RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room2->dwPosX, room2->dwPosY, room2);
+        }
     }
 
     return list;
@@ -1066,7 +1078,7 @@ static PyObject *py_get_level_exits(PyObject *self, PyObject *args) {
         }
 
         if (addedRoomData) {
-            RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room);
+            // RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room);
         }
     }
 
@@ -1096,60 +1108,65 @@ static PyObject *build_object_unit(struct UnitAny *unit) {
 }
 
 static PyObject *py_get_nearby_units(PyObject *self, PyObject *args) {
-    PyObject *list = PyList_New(0);
-    if (!list) {
-        write_log("ERR", "level_units: PyList_New failed");
-        return NULL;
-    }
+    __try {
+        PyObject *list = PyList_New(0);
+        if (!list) {
+            write_log("ERR", "level_units: PyList_New failed");
+            return NULL;
+        }
 
-    for (int type = 0; type <= 5; ++type) {
-        struct UnitHashTable *table = (type == UNIT_MISSILE) ? client_side_units : server_side_units;
-        if (!table) continue;
+        for (int type = 0; type <= 5; ++type) {
+            struct UnitHashTable *table = (type == UNIT_MISSILE) ? client_side_units : server_side_units;
+            if (!table) continue;
 
-        for (int i = 0; i < 128; ++i) {
-            struct UnitAny *unit = table[type].table[i];
-            while (unit) {
-                PyObject *obj = NULL;
+            for (int i = 0; i < 128; ++i) {
+                struct UnitAny *unit = table[type].table[i];
+                while (unit) {
+                    PyObject *obj = NULL;
 
-                switch (unit->dwType) {
-                    case UNIT_OBJECT:
-                        obj = build_object_unit(unit);
-                        break;
-                    case UNIT_MONSTER:
-                        obj = build_monster_unit(unit);
-                        break;
-                    case UNIT_PLAYER:
-                        obj = build_player_unit(unit);
-                        break;
-                    case UNIT_ITEM:
-                        obj = build_item_unit(unit);
-                        break;
-                    default:
-                        break;
-                }
-
-                if (obj) {
-                    if (PyList_Append(list, obj) != 0) {
-                        write_log("ERR", "level_units: PyList_Append failed");
-                        Py_DECREF(obj);
-                        Py_DECREF(list);
-                        return NULL;
+                    switch (unit->dwType) {
+                        case UNIT_OBJECT:
+                            obj = build_object_unit(unit);
+                            break;
+                        case UNIT_MONSTER:
+                            obj = build_monster_unit(unit);
+                            break;
+                        case UNIT_PLAYER:
+                            obj = build_player_unit(unit);
+                            break;
+                        case UNIT_ITEM:
+                            obj = build_item_unit(unit);
+                            break;
+                        default:
+                            break;
                     }
-                    Py_DECREF(obj);
-                }
 
-                unit = unit->pListNext;
+                    if (obj) {
+                        if (PyList_Append(list, obj) != 0) {
+                            write_log("ERR", "level_units: PyList_Append failed");
+                            Py_DECREF(obj);
+                            Py_DECREF(list);
+                            return NULL;
+                        }
+                        Py_DECREF(obj);
+                    }
+
+                    unit = unit->pListNext;
+                }
             }
         }
-    }
 
-    if (PyErr_Occurred()) {
-        write_log("ERR", "level_units: exception set");
-        Py_DECREF(list);
-        return NULL;
-    }
+        if (PyErr_Occurred()) {
+            write_log("ERR", "level_units: exception set");
+            Py_DECREF(list);
+            return NULL;
+        }
 
-    return list;
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_nearby_units");
+        Py_RETURN_NONE;
+    }
 }
 
 PyObject *py_get_unit_name(PyObject *self, PyObject *args) {
@@ -1237,37 +1254,160 @@ static PyObject *build_preset(struct PresetUnit *preset, uint32_t roomx, uint32_
     obj->preset = preset;
     obj->type = preset->dwType;
     obj->id = preset->dwTxtFileNo;
-    obj->x = roomx + preset->dwPosX;
-    obj->y = roomy + preset->dwPosY;
+    obj->x = roomx * 5 + preset->dwPosX;
+    obj->y = roomy * 5 + preset->dwPosY;
 
     return (PyObject *)obj;
 }
 
-static PyObject *py_get_presets_for_level(PyObject *self, PyObject *args) {
-    PyObject *py_level;
-    if (!PyArg_ParseTuple(args, "O", &py_level)) return NULL;
+static PyObject *py_get_presets_for_room(PyObject *self, PyObject *args) {
+    __try {
+    PyMapRoom *py_room;
+    if (!PyArg_ParseTuple(args, "O!", &PyMapRoomType, &py_room))
+        return NULL;
 
-    if (!PyObject_TypeCheck(py_level, &PyLevelType)) Py_RETURN_NONE;
-
-    PyLevel *level = (PyLevel *)py_level;
-    if (!level->level) Py_RETURN_NONE;
-
-    if (!level->level->pRoom2First)
-        InitLevel(level->level);
+    struct Room2 *room = py_room->room_data;
+    if (!room || !room->pPreset)
+        Py_RETURN_NONE;
 
     PyObject *list = PyList_New(0);
     if (!list) return NULL;
 
-    for (struct Room2 *room = level->level->pRoom2First; room; room = room->pRoom2Next) {
-        for (struct PresetUnit *preset = room->pPreset; preset; preset = preset->pPresetNext) {
-            PyObject *obj = build_preset(preset, room->dwPosX, room->dwPosY);
-            if (!obj) continue;
-            PyList_Append(list, obj);
-            Py_DECREF(obj);
-        }
+    for (struct PresetUnit *preset = room->pPreset; preset; preset = preset->pPresetNext) {
+        PyObject *obj = build_preset(preset, room->dwPosX, room->dwPosY);
+        if (!obj) continue;
+        PyList_Append(list, obj);
+        Py_DECREF(obj);
     }
 
     return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_nearby_units");
+        Py_RETURN_NONE;
+    }
+}
+
+static PyMemberDef PyTile_members[] = {
+    {"level_x", T_UINT, offsetof(PyTile, level_x), READONLY, ""},
+    {"level_y", T_UINT, offsetof(PyTile, level_y), READONLY, ""},
+    {"flags", T_USHORT, offsetof(PyTile, flags), READONLY, ""},
+    {NULL}
+};
+
+static PyTypeObject PyTileType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    .tp_name = "game.Tile",
+    .tp_basicsize = sizeof(PyTile),
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+    .tp_members = PyTile_members,
+};
+
+static PyObject *build_tile(uint32_t level_x, uint32_t level_y, uint16_t flags) {
+    PyTile *tile = PyObject_New(PyTile, &PyTileType);
+    if (!tile) return NULL;
+
+    tile->level_x = level_x;
+    tile->level_y = level_y;
+    tile->flags = flags;
+
+    return (PyObject *)tile;
+}
+
+static PyObject *py_get_room_tiles(PyObject *self, PyObject *args) {
+    __try {
+        PyMapRoom *py_room;
+        if (!PyArg_ParseTuple(args, "O!", &PyMapRoomType, &py_room))
+            return NULL;
+
+        struct Room2 *room2 = py_room->room_data;
+        if (!room2 || !room2->pLevel || !room2->pLevel->pMisc)
+            Py_RETURN_NONE;
+
+        bool addedRoomData = false;
+        if (!room2->pRoom1) {
+            AddRoomData(room2->pLevel->pMisc->pAct, room2->pLevel->dwLevelNo,
+                        room2->dwPosX, room2->dwPosY, room2);
+            addedRoomData = true;
+        }
+
+        if (!room2->pRoom1 || !room2->pRoom1->Coll || !room2->pRoom1->Coll->pMapStart)
+            goto fail;
+
+        struct CollMap *coll = room2->pRoom1->Coll;
+        int size_x = coll->dwSizeRoomX;
+        int size_y = coll->dwSizeRoomY;
+        uint16_t *flags = coll->pMapStart;
+
+        PyObject *list = PyList_New(0);
+        if (!list)
+            goto fail;
+
+        for (int y = 0; y < size_y * 5; y++) {
+            for (int x = 0; x < size_x * 5; x++) {
+                int index = y * size_x + x;
+                uint16_t flag = flags[index];
+                uint32_t level_x = coll->dwPosGameX + x;
+                uint32_t level_y = coll->dwPosGameY + y;
+
+                PyObject *tile = build_tile(level_x, level_y, flag);
+                if (!tile || PyList_Append(list, tile) != 0) {
+                    Py_XDECREF(tile);
+                    Py_DECREF(list);
+                    goto fail;
+                }
+
+                Py_DECREF(tile);
+            }
+        }
+
+        if (addedRoomData) {
+            // RemoveRoomData(room2->pLevel->pMisc->pAct, room2->pLevel->dwLevelNo,
+                           // room2->dwPosX, room2->dwPosY, room2);
+        }
+
+        return list;
+
+        fail:
+            if (addedRoomData) {
+                // RemoveRoomData(room2->pLevel->pMisc->pAct, room2->pLevel->dwLevelNo,
+                               // room2->dwPosX, room2->dwPosY, room2);
+            }
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_nearby_units");
+        Py_RETURN_NONE;
+    }
+}
+
+static PyObject *py_get_map_room_neighbors(PyObject *self, PyObject *args) {
+    __try {
+        PyMapRoom *py_room;
+        if (!PyArg_ParseTuple(args, "O!", &PyMapRoomType, &py_room))
+            return NULL;
+
+        struct Room2 *room = py_room->room_data;
+        if (!room || !room->pRoom2Near || room->dwRoomsNear == 0)
+            Py_RETURN_NONE;
+
+        PyObject *list = PyList_New(0);
+        if (!list) return NULL;
+
+        for (uint32_t i = 0; i < room->dwRoomsNear; i++) {
+            struct Room2 *neighbor = room->pRoom2Near[i];
+            if (!neighbor) continue;
+
+            PyObject *map_room = build_map_room_from_room2(neighbor);
+            if (map_room) {
+                PyList_Append(list, map_room);
+                Py_DECREF(map_room);
+            }
+        }
+
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_map_room_neighbors");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyMethodDef GameMethods[] = {
@@ -1299,7 +1439,9 @@ static PyMethodDef GameMethods[] = {
     {"get_level_exits", py_get_level_exits, METH_VARARGS, NULL},
     {"get_nearby_units", py_get_nearby_units, METH_NOARGS, NULL},
     {"get_unit_name", py_get_unit_name, METH_VARARGS, NULL},
-    {"get_presets_for_level", py_get_presets_for_level, METH_VARARGS, ""},
+    {"get_presets_for_room", py_get_presets_for_room, METH_VARARGS, ""},
+    {"get_room_tiles", py_get_room_tiles, METH_VARARGS, ""},
+    {"get_map_room_neighbors", py_get_map_room_neighbors, METH_VARARGS, ""},
     {NULL, NULL, 0, NULL}
 };
 
@@ -1373,6 +1515,13 @@ PyMODINIT_FUNC PyInit_game(void) {
     }
     Py_INCREF(&PyPresetType);
     PyModule_AddObject(module, "Preset", (PyObject *)&PyPresetType);
+
+    if (PyType_Ready(&PyTileType) < 0) {
+        write_log("ERR", "PyTileType not ready");
+        return NULL;
+    }
+    Py_INCREF(&PyTileType);
+    PyModule_AddObject(module, "Tile", (PyObject *)&PyTileType);
 
     return module;
 }

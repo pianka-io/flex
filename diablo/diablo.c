@@ -298,7 +298,7 @@ void reveal_level(struct Level *level) {
         reveal_room(room);
 
         if (roomData) {
-        	RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room->pRoom1);
+        	// RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room->pRoom1);
         }
     }
 }

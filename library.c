@@ -40,7 +40,6 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     initialize_diablo();
     write_log("INF", "version " FLEX_VERSION " by pianka");
     InitializeCriticalSection(&plugins_lock);
-    write_log("DBG", "initialized plugins lock");
 
     if (PyImport_AppendInittab("game", PyInit_game) == -1) {
         write_log("ERR", "Failed to register Python module 'game'");
@@ -56,16 +55,10 @@ DWORD WINAPI ConsoleThread(LPVOID lpParam) {
     wcscat_s(pythonHome, MAX_PATH, L"\\Python3");
     Py_SetPythonHome(pythonHome);
 
-    write_log("DBG", "PYTHONHOME: %s", getenv("PYTHONHOME"));
-    write_log("DBG", "PYTHONPATH: %s", getenv("PYTHONPATH"));
-    write_log("DBG", "set python home");
-
     Py_Initialize();
-    write_log("DBG", "python initialized");
 
     PyObject *sysPath = PySys_GetObject("path");
     PyList_Append(sysPath, PyUnicode_FromString("scripts"));
-    write_log("DBG", "updated python path");
     /* set up python */
 
     WIN32_FIND_DATAA findData;

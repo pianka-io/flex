@@ -18,9 +18,11 @@ from typing import Optional, TypeAlias, Callable, Awaitable
 from dataclasses import dataclass
 from enum import IntEnum, StrEnum, Enum, auto
 from game import wstring_at
+from itertools import count
 import asyncio
 import inspect
 import threading
+import heapq
 
 _asyncio_loop: AbstractEventLoop
 
@@ -51,7 +53,7 @@ class NativePtr:
     def ptr(self) -> int:
         return self._ptr
 
-@dataclass
+@dataclass(frozen=True)
 class Position:
     x: int
     y: int
@@ -479,9 +481,53 @@ class Game:
 #####################################
 ## map                             ##
 #####################################
+class MapTile:
+    def __init__(self, internal, offset: Position):
+        self._internal = internal
+        self._offset = offset
+
+    @property
+    def position(self) -> Position:
+        return Position(self._internal.level_x, self._internal.level_y)
+
+    @property
+    def walkable(self) -> bool:
+        return not bool(self._internal.flags & 0x01) and not bool(self._internal.flags & 0x0002) and not bool(self._internal.flags & 0xffff)
+
+    @property
+    def occupied(self) -> bool:
+        return bool(self._internal.flags & 0x08)
+
+class PresetType(IntEnum):
+    MONSTER = 1
+    OBJECT = 2
+
+class Preset:
+    def __init__(self, internal: game.Preset):
+        self._internal = internal
+
+    @property
+    def preset_type(self) -> PresetType:
+        return PresetType(self._internal.type)
+
+    @property
+    def type(self) -> int:
+        return self._internal.id
+
+    @property
+    def position(self) -> Position:
+        return Position(self._internal.x, self._internal.y)
+
 class MapRoom:
     def __init__(self, internal):
         self._internal = internal
+
+    @property
+    def presets(self) -> list[Preset]:
+        presets = game.get_presets_for_room(self._internal)
+        if presets is None:
+            return []
+        return [Preset(p) for p in presets if p.type in [1, 2]]
 
     @property
     def position(self) -> Position:
@@ -490,6 +536,19 @@ class MapRoom:
     @property
     def dimensions(self) -> Dimensions:
         return Dimensions(self._internal.size_x, self._internal.size_y)
+
+    @property
+    def center(self) -> Position:
+        return Position(self.position.x + self.dimensions.width // 2,
+                        self.position.y + self.dimensions.height // 2)
+
+    @property
+    def neighbors(self) -> list["MapRoom"]:
+        return [MapRoom(r) for r in game.get_map_room_neighbors(self._internal)]
+
+    @property
+    def tiles(self) -> list[MapTile]:
+        return [MapTile(t, self.position) for t in game.get_room_tiles(self._internal)]
 
 class LevelId(IntEnum):
     NULL = 0
@@ -705,27 +764,7 @@ class LevelExit:
     to_level: LevelId
     position: Position
 
-class PresetType(IntEnum):
-    MONSTER = 1
-    OBJECT = 2
-
-class Preset:
-    def __init__(self, internal: game.Preset):
-        self._internal = internal
-
-    @property
-    def preset_type(self) -> PresetType:
-        return PresetType(self._internal.type)
-
-    @property
-    def type(self) -> int:
-        return self._internal.id
-
-    @property
-    def position(self) -> Position:
-        return Position(self._internal.x, self._internal.y)
-
-class LevelData:
+class MapLevel:
     def __init__(self, internal: game.Level):
         self._internal = internal
 
@@ -742,12 +781,8 @@ class LevelData:
         return Dimensions(self._internal.size_x, self._internal.size_y)
 
     @property
-    def map_rooms(self) -> list[MapRoom]:
+    def rooms(self) -> list[MapRoom]:
         return [MapRoom(r) for r in game.get_level_map_rooms(self._internal)]
-
-    @property
-    def presets(self) -> list[Preset]:
-        return [Preset(p) for p in game.get_presets_for_level(self._internal) if p.type in [1, 2]]
 
     @property
     def exits(self) -> list[LevelExit]:
@@ -763,13 +798,13 @@ class LevelData:
 
 class Levels:
     @staticmethod
-    def find_level_by_id(level_id: LevelId) -> Optional[LevelData]:
+    def find_level_by_id(level_id: LevelId) -> Optional[MapLevel]:
         player = get_player()
         if not player:
             return None
         for level in game.get_act_levels(player.act_data._internal):
             if level.level_no == level_id:
-                return LevelData(level)
+                return MapLevel(level)
         return None
 
 def find_level_path(from_level: LevelId, to_level: LevelId) -> list[LevelId] | None:
@@ -794,6 +829,80 @@ def find_level_path(from_level: LevelId, to_level: LevelId) -> list[LevelId] | N
 
     return None
 
+def nearest_walkable_tile(target: Position, tiles: list[MapTile]) -> Optional[Position]:
+    return min(
+        (t.position for t in tiles if t.walkable and not t.occupied),
+        key=lambda p: abs(p.x - target.x) + abs(p.y - target.y),
+        default=None
+    )
+
+def find_room_path(start: Position, end: Position) -> list[Position]:
+    if start is None or end is None:
+        error("start or end is None")
+        return []
+
+    player = get_player()
+    tiles = [t for room in player.level_data.rooms for t in room.tiles]
+    tile_map = {(t.position.x, t.position.y): t for t in tiles}
+
+    def nearest_walkable(pos: Position) -> Optional[Position]:
+        return min(
+            (t.position for t in tiles if t.walkable and not t.occupied),
+            key=lambda p: abs(p.x - pos.x) + abs(p.y - pos.y),
+            default=None
+        )
+
+    if (start.x, start.y) not in tile_map or not tile_map[(start.x, start.y)].walkable:
+        start = nearest_walkable(start)
+    if (end.x, end.y) not in tile_map or not tile_map[(end.x, end.y)].walkable:
+        end = nearest_walkable(end)
+
+    if not start or not end:
+        error("could not find valid start or end")
+        return []
+
+    def neighbors(pos: Position) -> list[Position]:
+        out = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                neighbor = Position(pos.x + dx, pos.y + dy)
+                t = tile_map.get((neighbor.x, neighbor.y))
+                if t and t.walkable and not t.occupied:
+                    out.append(neighbor)
+        return out
+
+
+    def heuristic(a: Position, b: Position) -> int:
+        return abs(a.x - b.x) + abs(a.y - b.y)
+
+    tie_breaker = count()
+    open = [(0, next(tie_breaker), start)]
+    came_from = {}
+    cost = {start: 0}
+
+    while open:
+        _, __, current = heapq.heappop(open)
+
+        if current == end:
+            path = [current]
+            while current in came_from:
+                current = came_from[current]
+                path.append(current)
+            path.reverse()
+            return path
+
+        for next_pos in neighbors(current):
+            new_cost = cost[current] + 1
+            if next_pos not in cost or new_cost < cost[next_pos]:
+                cost[next_pos] = new_cost
+                priority = new_cost + heuristic(next_pos, end)
+                heapq.heappush(open, (priority, next(tie_breaker), next_pos))
+                came_from[next_pos] = current
+
+    return []
+
 class ActData:
     def __init__(self, internal):
         self._internal: game.Act = internal
@@ -803,9 +912,9 @@ class ActData:
         return self._internal.dwMapSeed
 
     @property
-    def levels(self) -> list[LevelData]:
+    def levels(self) -> list[MapLevel]:
         levels = game.get_act_levels(self._internal)
-        return [LevelData(lvl) for lvl in levels] if levels else []
+        return [MapLevel(lvl) for lvl in levels] if levels else []
 
     @property
     def staff_tomb_level(self) -> int:
@@ -854,9 +963,9 @@ class Character(Unit):
         return level.id if level else None
 
     @property
-    def level_data(self) -> LevelData:
+    def level_data(self) -> MapLevel:
         level = game.get_player_level(self._internal)
-        return LevelData(level)
+        return MapLevel(level)
 
     @property
     def map_room(self) -> Optional[MapRoom]:

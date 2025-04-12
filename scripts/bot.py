@@ -44,7 +44,7 @@ async def when_lobby():
     if not Controls.create_name:
         return
     Controls.create_name.text = "flex-" + str(random.randint(1, 1000))
-    await pause(2000)
+    # await pause(2000)
     if not Controls.create_game:
         return
     await Controls.create_game.click()
@@ -52,37 +52,48 @@ async def when_lobby():
 #####################################
 ## in game                         ##
 #####################################
+path: Optional[list[Position]] = None
+@loop(LoopType.DRAW_AUTOMAP)
+def draw_automap() -> list[Element]:
+    global path
+    game = get_game()
+    if game is None: return []
+    if not game.ready: return []
+
+    elements = []
+
+    path_copy = list(path) if path else None
+    if path_copy and len(path_copy) > 1:
+        for i in range(len(path_copy) - 1):
+            elements.append(LineElement(path_copy[i], path_copy[i + 1], 0x5B))
+
+    return elements
+
 @loop(LoopType.CLIENT_STATE, ClientState.IN_GAME)
 async def when_in_game():
-
+    global path
     game = get_game()
     if game is None: return
     if not game.ready: return
 
-    await pause(1000)
-    # for preset in get_player().level_data.presets:
-    #     if preset.preset_type == 1:
-    #         info(str(MonsterType(preset.type).name))
+    player = get_player()
+    if not player.level_data: return
 
-    info("units")
+    akara_preset: Optional[Position] = None
+    for room in player.level_data.rooms:
+        for preset in room.presets:
+            if preset.preset_type == PresetType.MONSTER:
+                if MonsterType(preset.type) == MonsterType.AKARA:
+                    akara_preset = preset.position
+                    break
+
+    akara: Optional[Monster] = None
     for unit in get_nearby_units():
         if isinstance(unit, Monster):
-            info("  [MON] " + str(unit.type.name))
-        # if isinstance(unit, Object):
-        #     info("  [OBJ] " + str(unit.type.name))
-        # el
-        # if isinstance(unit, Item):
-        #     info("  [ITM] " + str(unit.type.name))
-        # else:
-        #     info("  other")
+            if unit.type == MonsterType.AKARA:
+                akara = unit
 
-    # path = find_level_path(LevelId.ROGUE_ENCAMPMENT, LevelId.CATACOMBS_LEVEL_4)
-    # for step in path:
-    #     print(str(step.name))
-    #     level = Levels.find_level_by_id(step)
-    #     if not level:
-    #         continue
-    #     for exit in level.exits:
-    #         print("  " + str(exit))
-    #         how_far = distance(get_player().position, exit.position)
-    #         print("  distance: " + str(how_far))
+    if not akara:
+        path = find_room_path(player.position, akara_preset)
+    else:
+        path = find_room_path(player.position, akara.position)
