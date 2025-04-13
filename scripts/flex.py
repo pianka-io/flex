@@ -460,7 +460,6 @@ class ButtonDirection(IntEnum):
 
 async def mouse_click(button: MouseButton, position: Position):
     game.mouse_click(position.x, position.y, int(button), ButtonDirection.DOWN)
-    # await pause(100)
     game.mouse_click(position.x, position.y, int(button), ButtonDirection.UP)
 
 #####################################
@@ -492,11 +491,12 @@ class MapTile:
 
     @property
     def walkable(self) -> bool:
-        return not bool(self._internal.flags & 0x01) and not bool(self._internal.flags & 0x0002) and not bool(self._internal.flags & 0xffff)
-
-    @property
-    def occupied(self) -> bool:
-        return bool(self._internal.flags & 0x08)
+        return not bool(self._internal.flags & 0x0001) and \
+               not bool(self._internal.flags & 0x0002) and \
+               not bool(self._internal.flags & 0x0008) and \
+               not bool(self._internal.flags & 0x0400) and \
+               not bool(self._internal.flags & 0x1000) and \
+               not bool(self._internal.flags & 0xffff)
 
 class PresetType(IntEnum):
     MONSTER = 1
@@ -831,7 +831,7 @@ def find_level_path(from_level: LevelId, to_level: LevelId) -> list[LevelId] | N
 
 def nearest_walkable_tile(target: Position, tiles: list[MapTile]) -> Optional[Position]:
     return min(
-        (t.position for t in tiles if t.walkable and not t.occupied),
+        (t.position for t in tiles if t.walkable),
         key=lambda p: abs(p.x - target.x) + abs(p.y - target.y),
         default=None
     )
@@ -847,7 +847,7 @@ def find_room_path(start: Position, end: Position) -> list[Position]:
 
     def nearest_walkable(pos: Position) -> Optional[Position]:
         return min(
-            (t.position for t in tiles if t.walkable and not t.occupied),
+            (t.position for t in tiles if t.walkable),
             key=lambda p: abs(p.x - pos.x) + abs(p.y - pos.y),
             default=None
         )
@@ -869,7 +869,7 @@ def find_room_path(start: Position, end: Position) -> list[Position]:
                     continue
                 neighbor = Position(pos.x + dx, pos.y + dy)
                 t = tile_map.get((neighbor.x, neighbor.y))
-                if t and t.walkable and not t.occupied:
+                if t and t.walkable:
                     out.append(neighbor)
         return out
 
@@ -925,6 +925,375 @@ class ActData:
 #####################################
 async def walk_to(position: Position):
     ...
+
+#####################################
+## stats                           ##
+#####################################
+class StatType(IntEnum):
+    STRENGTH = 0
+    ENERGY = 1
+    DEXTERITY = 2
+    VITALITY = 3
+    STAT_POINTS_LEFT = 4
+    NEW_SKILLS = 5
+    HP = 6
+    MAX_HP = 7
+    MANA = 8
+    MAX_MANA = 9
+    STAMINA = 10
+    MAX_STAMINA = 11
+    LEVEL = 12
+    EXP = 13
+    GOLD = 14
+    GOLD_BANK = 15
+    ENHANCED_DEFENSE = 16
+    ENHANCED_MAXIMUM_DAMAGE = 17
+    ENHANCED_MINIMUM_DAMAGE = 18
+    ATTACK_RATING = 19
+    TO_BLOCK = 20
+    MINIMUM_DAMAGE = 21
+    MAXIMUM_DAMAGE = 22
+    SECONDARY_MINIMUM_DAMAGE = 23
+    SECONDARY_MAXIMUM_DAMAGE = 24
+    ENHANCED_DAMAGE = 25
+    MANA_RECOVERY = 26
+    MANA_RECOVERY_BONUS = 27
+    STAMINA_RECOVERY_BONUS = 28
+    LAST_EXPERIENCE = 29
+    NEXT_EXPERIENCE = 30
+    DEFENSE = 31
+    DEFENSE_VS_MISSILES = 32
+    DEFENSE_VS_MELEE = 33
+    DMG_REDUCTION = 34
+    MAGIC_DMG_REDUCTION = 35
+    DMG_REDUCTION_PCT = 36
+    MAGIC_DMG_REDUCTION_PCT = 37
+    MAX_MAGIC_DMG_REDUCT_PCT = 38
+    FIRE_RESIST = 39
+    MAX_FIRE_RESIST = 40
+    LIGHTNING_RESIST = 41
+    MAX_LIGHTNING_RESIST = 42
+    COLD_RESIST = 43
+    MAX_COLD_RESIST = 44
+    POISON_RESIST = 45
+    MAX_POISON_RESIST = 46
+    DAMAGE_AURA = 47
+    MINIMUM_FIRE_DAMAGE = 48
+    MAXIMUM_FIRE_DAMAGE = 49
+    MINIMUM_LIGHTNING_DAMAGE = 50
+    MAXIMUM_LIGHTNING_DAMAGE = 51
+    MINIMUM_MAGICAL_DAMAGE = 52
+    MAXIMUM_MAGICAL_DAMAGE = 53
+    MINIMUM_COLD_DAMAGE = 54
+    MAXIMUM_COLD_DAMAGE = 55
+    COLD_DAMAGE_LENGTH = 56
+    MINIMUM_POISON_DAMAGE = 57
+    MAXIMUM_POISON_DAMAGE = 58
+    POISON_DAMAGE_LENGTH = 59
+    LIFE_LEECH = 60
+    MAX_LIFE_STOLEN_PER_HIT = 61
+    MANA_LEECH = 62
+    MAX_MANA_STOLEN_PER_HIT = 63
+    MINIMUM_STAMINA_DRAIN = 64
+    MAXIMUM_STAMINA_DRAIN = 65
+    STUN_LENGTH = 66
+    VELOCITY_PERCENT = 67
+    ATTACK_RATE = 68
+    OTHER_ANIMATION_RATE = 69
+    AMMO_QUANTITY = 70
+    VALUE = 71
+    DURABILITY = 72
+    MAX_DURABILITY = 73
+    REPLENISH_LIFE = 74
+    ENHANCED_MAX_DURABILITY = 75
+    ENHANCED_LIFE = 76
+    ENHANCED_MANA = 77
+    ATTACKER_TAKES_DAMAGE = 78
+    GOLD_FIND = 79
+    MAGIC_FIND = 80
+    KNOCKBACK = 81
+    TIME_DURATION = 82
+    CLASS_SKILLS = 83
+    UNSENT_PARAMETER = 84
+    ADD_EXPERIENCE = 85
+    LIFE_AFTER_EACH_KILL = 86
+    REDUCE_VENDOR_PRICES = 87
+    DOUBLE_HERB_DURATION = 88
+    LIGHT_RADIUS = 89
+    LIGHT_COLOUR = 90
+    REDUCED_REQUIREMENTS = 91
+    REDUCED_LEVEL_REQ = 92
+    INCREASED_ATTACK_SPEED = 93
+    REDUCED_LEVEL_REQ_PCT = 94
+    LAST_BLOCK_FRAME = 95
+    FASTER_RUN_WALK = 96
+    NON_CLASS_SKILL = 97
+    STATE = 98
+    FASTER_HIT_RECOVERY = 99
+    MONSTER_PLAYER_COUNT = 100
+    SKILL_POISON_OVERRIDE_LEN = 101
+    FASTER_BLOCK = 102
+    SKILL_BYPASS_UNDEAD = 103
+    SKILL_BYPASS_DEMONS = 104
+    FASTER_CAST = 105
+    SKILL_BYPASS_BEASTS = 106
+    SINGLE_SKILL = 107
+    SLAIN_MONSTERS_RIP = 108
+    CURSE_RESISTANCE = 109
+    POISON_LENGTH_REDUCTION = 110
+    ADDS_DAMAGE = 111
+    HIT_CAUSES_MONSTER_TO_FLEE = 112
+    HIT_BLINDS_TARGET = 113
+    DAMAGE_TO_MANA = 114
+    IGNORE_TARGETS_DEFENSE = 115
+    REDUCE_TARGETS_DEFENSE = 116
+    PREVENT_MONSTER_HEAL = 117
+    HALF_FREEZE_DURATION = 118
+    TO_HIT_PERCENT = 119
+    MONSTER_DEF_DUCT_PER_HIT = 120
+    DAMAGE_TO_DEMONS = 121
+    DAMAGE_TO_UNDEAD = 122
+    ATTACK_RATING_VS_DEMONS = 123
+    ATTACK_RATING_VS_UNDEAD = 124
+    THROWABLE = 125
+    ELEMENTAL_SKILLS = 126
+    ALL_SKILLS = 127
+    ATTACKER_TAKES_LTNG_DMG = 128
+    IRON_MAIDEN_LEVEL = 129
+    LIFE_TAP_LEVEL = 130
+    THORNS_PERCENT = 131
+    BONE_ARMOR = 132
+    MAXIMUM_BONE_ARMOR = 133
+    FREEZE_TARGET = 134
+    OPEN_WOUNDS = 135
+    CRUSHING_BLOW = 136
+    KICK_DAMAGE = 137
+    MANA_AFTER_EACH_KILL = 138
+    LIFE_AFTER_EACH_DEMON_KILL = 139
+    EXTRA_BLOOD = 140
+    DEADLY_STRIKE = 141
+    FIRE_ABSORB_PERCENT = 142
+    FIRE_ABSORB = 143
+    LIGHTNING_ABSORB_PERCENT = 144
+    LIGHTNING_ABSORB = 145
+    MAGIC_ABSORB_PERCENT = 146
+    MAGIC_ABSORB = 147
+    COLD_ABSORB_PERCENT = 148
+    COLD_ABSORB = 149
+    SLOW = 150
+    AURA = 151
+    INDESTRUCTIBLE = 152
+    CANNOT_BE_FROZEN = 153
+    STAMINA_DRAIN_PERCENT = 154
+    REANIMATE = 155
+    PIERCING_ATTACK = 156
+    FIRES_MAGIC_ARROWS = 157
+    FIRE_EXPLOSIVE_ARROWS = 158
+    MINIMUM_THROWING_DAMAGE = 159
+    MAXIMUM_THROWING_DAMAGE = 160
+    SKILL_HAND_OF_ATHENA = 161
+    SKILL_STAMINA_PERCENT = 162
+    SKILL_PASSIVE_STAMINA_PCT = 163
+    CONCENTRATION = 164
+    ENCHANT = 165
+    PIERCE = 166
+    CONVICTION = 167
+    CHILLING_ARMOR = 168
+    FRENZY = 169
+    DECREPIFY = 170
+    SKILL_ARMOR_PERCENT = 171
+    ALIGNMENT = 172
+    TARGET_0 = 173
+    TARGET_1 = 174
+    GOLD_LOST = 175
+    CONVERSION_LEVEL = 176
+    CONVERSION_MAXIMUM_LIFE = 177
+    UNIT_DO_OVERLAY = 178
+    ATTACK_RATING_VS_MONSTER_TYPE = 179
+    DAMAGE_TO_MONSTER_TYPE = 180
+    FADE = 181
+    ARMOR_OVERRIDE_PERCENT = 182
+    UNUSED_183 = 183
+    UNUSED_184 = 184
+    UNUSED_185 = 185
+    UNUSED_186 = 186
+    UNUSED_187 = 187
+    SKILL_TAB = 188
+    UNUSED_189 = 189
+    UNUSED_190 = 190
+    UNUSED_191 = 191
+    UNUSED_192 = 192
+    UNUSED_193 = 193
+    SOCKETS = 194
+    SKILL_ON_STRIKING = 195
+    SKILL_ON_KILL = 196
+    SKILL_ON_DEATH = 197
+    SKILL_ON_HIT = 198
+    SKILL_ON_LEVEL_UP = 199
+    UNUSED_200 = 200
+    SKILL_WHEN_STRUCK = 201
+    UNUSED_202 = 202
+    UNUSED_203 = 203
+    CHARGED = 204
+    UNUSED_205 = 205
+    UNUSED_206 = 206
+    UNUSED_207 = 207
+    UNUSED_208 = 208
+    UNUSED_209 = 209
+    UNUSED_210 = 210
+    UNUSED_211 = 211
+    UNUSED_212 = 212
+    DEFENSE_PER_LEVEL = 213
+    ENHANCED_DEFENSE_PER_LEVEL = 214
+    LIFE_PER_LEVEL = 215
+    MANA_PER_LEVEL = 216
+    MAX_DAMAGE_PER_LEVEL = 217
+    MAX_ENHANCED_DMG_PER_LEVEL = 218
+    STRENGTH_PER_LEVEL = 219
+    DEXTERITY_PER_LEVEL = 220
+    ENERGY_PER_LEVEL = 221
+    VITALITY_PER_LEVEL = 222
+    ATTACK_RATING_PER_LEVEL = 223
+    BONUS_ATTACK_RATING_PER_LEVEL = 224
+    MAX_COLD_DAMAGE_PER_LEVEL = 225
+    MAX_FIRE_DAMAGE_PER_LEVEL = 226
+    MAX_LIGHTNING_DAMAGE_PER_LEVEL = 227
+    MAX_POISON_DAMAGE_PER_LEVEL = 228
+    COLD_RES_PER_LEVEL = 229
+    FIRE_RES_PER_LEVEL = 230
+    LIGHTNING_RES_PER_LEVEL = 231
+    POISON_RES_PER_LEVEL = 232
+    COLD_ABSORB_PER_LEVEL = 233
+    FIRE_ABSORB_PER_LEVEL = 234
+    LIGHTNING_ABSORB_PER_LEVEL = 235
+    POISON_ABSORB_PER_LEVEL = 236
+    THORNS_PER_LEVEL = 237
+    EXTRA_GOLD_PER_LEVEL = 238
+    MAGIC_FIND_PER_LEVEL = 239
+    STAMINA_REGEN_PER_LEVEL = 240
+    STAMINA_PER_LEVEL = 241
+    DAMAGE_TO_DEMONS_PER_LEVEL = 242
+    DAMAGE_TO_UNDEAD_PER_LEVEL = 243
+    ATTACK_RATING_VS_DEMONS_PER_LEVEL = 244
+    ATTACK_RATING_VS_UNDEAD_PER_LEVEL = 245
+    CRUSHING_BLOW_PER_LEVEL = 246
+    OPEN_WOUNDS_PER_LEVEL = 247
+    KICK_DAMAGE_PER_LEVEL = 248
+    DEADLY_STRIKE_PER_LEVEL = 249
+    FIND_GEMS_PER_LEVEL = 250
+    REPAIRS_DURABILITY = 251
+    REPLENISHES_QUANTITY = 252
+    INCREASED_STACK_SIZE = 253
+    FIND_ITEM = 254
+    SLASH_DAMAGE = 255
+    SLASH_DAMAGE_PERCENT = 256
+    CRUSH_DAMAGE = 257
+    CRUSH_DAMAGE_PERCENT = 258
+    THRUST_DAMAGE = 259
+    THRUST_DAMAGE_PERCENT = 260
+    SLASH_DAMAGE_ABSORPTION = 261
+    CRUSH_DAMAGE_ABSORPTION = 262
+    THRUST_DAMAGE_ABSORPTION = 263
+    SLASH_DAMAGE_ABSORB_PCT = 264
+    CRUSH_DAMAGE_ABSORB_PCT = 265
+    THRUST_DAMAGE_ABSORB_PCT = 266
+    DEFENSE_PER_TIME = 267
+    ENHANCED_DEFENSE_PER_TIME = 268
+    LIFE_PER_TIME = 269
+    MANA_PER_TIME = 270
+    MAX_DAMAGE_PER_TIME = 271
+    MAX_ENHANCED_DMG_PER_TIME = 272
+    STRENGTH_PER_TIME = 273
+    DEXTERITY_PER_TIME = 274
+    ENERGY_PER_TIME = 275
+    VITALITY_PER_TIME = 276
+    ATTACK_RATING_PER_TIME = 277
+    CHANCE_TO_HIT_PER_TIME = 278
+    MAX_COLD_DAMAGE_PER_TIME = 279
+    MAX_FIRE_DAMAGE_PER_TIME = 280
+    MAX_LIGHTNING_DAMAGE_PER_TIME = 281
+    MAX_DAMAGE_PER_POISON = 282
+    COLD_RES_PER_TIME = 283
+    FIRE_RES_PER_TIME = 284
+    LIGHTNING_RES_PER_TIME = 285
+    POISON_RES_PER_TIME = 286
+    COLD_ABSORPTION_PER_TIME = 287
+    FIRE_ABSORPTION_PER_TIME = 288
+    LIGHTNING_ABSORB_PER_TIME = 289
+    POISON_ABSORB_PER_TIME = 290
+    EXTRA_GOLD_PER_TIME = 291
+    MAGIC_FIND_PER_TIME = 292
+    REGEN_STAMINA_PER_TIME = 293
+    STAMINA_PER_TIME = 294
+    DAMAGE_TO_DEMONS_PER_TIME = 295
+    DAMAGE_TO_UNDEAD_PER_TIME = 296
+    ATTACK_RATING_VS_DEMONS_PER_TIME = 297
+    ATTACK_RATING_VS_UNDEAD_PER_TIME = 298
+    CRUSHING_BLOW_PER_TIME = 299
+    OPEN_WOUNDS_PER_TIME = 300
+    KICK_DAMAGE_PER_TIME = 301
+    DEADLY_STRIKE_PER_TIME = 302
+    FIND_GEMS_PER_TIME = 303
+    ENEMY_COLD_RES_REDUCTION = 304
+    ENEMY_FIRE_RES_REDUCTION = 305
+    ENEMY_LIGHT_RES_REDUCTION = 306
+    ENEMY_POISON_RES_REDUCTION = 307
+    DAMAGE_VS_MONSTERS = 308
+    ENHANCED_DMG_VS_MONSTERS = 309
+    ATTACK_RATING_VS_MONSTERS = 310
+    BONUS_ATTACK_RATING_VS_MONSTERS = 311
+    DEFENSE_VS_MONSTERS = 312
+    ENHANCED_DEF_VS_MONSTERS = 313
+    FIRE_DAMAGE_LENGTH = 314
+    MIN_FIRE_DAMAGE_LENGTH = 315
+    MAX_FIRE_DAMAGE_LENGTH = 316
+    PROGRESSIVE_DAMAGE = 317
+    PROGRESSIVE_STEAL = 318
+    PROGRESSIVE_OTHER = 319
+    PROGRESSIVE_FIRE = 320
+    PROGRESSIVE_COLD = 321
+    PROGRESSIVE_LIGHTNING = 322
+    EXTRA_CHARGES = 323
+    PROGRESSIVE_ATTACK_RATING = 324
+    POISON_COUNT = 325
+    DAMAGE_FRAME_RATE = 326
+    PIERCE_IDX = 327
+    FIRE_MASTERY = 328
+    LIGHTNING_MASTERY = 329
+    COLD_MASTERY = 330
+    POISON_MASTERY = 331
+    PASSIVE_ENEMY_FIRE_RES_REDUC = 332
+    PASSIVE_ENEMY_LIGHTNING_RES_REDUC = 333
+    PASSIVE_ENEMY_COLD_RES_REDUC = 334
+    PASSIVE_ENEMY_POISON_RES_REDUC = 335
+    CRITICAL_STRIKE = 336
+    DODGE = 337
+    AVOID = 338
+    EVADE = 339
+    WARMTH = 340
+    MELEE_ARM_MASTERY = 341
+    MELEE_DAMAGE_MASTERY = 342
+    MELEE_CRIT_HIT_MASTERY = 343
+    THROWN_WEAPON_ARM_MASTERY = 344
+    THROWN_WEAPON_DMG_MASTERY = 345
+    THROWN_CRIT_HIT_MASTERY = 346
+    WEAPON_BLOCK = 347
+    SUMMON_RESIST = 348
+    MODIFIER_LIST_SKILL = 349
+    MODIFIER_LIST_LEVEL = 350
+    LAST_SENT_LIFE_PERCENT = 351
+    SOURCE_UNIT_TYPE = 352
+    SOURCE_UNIT_ID = 353
+    SHORT_PARAMETER_1 = 354
+    QUEST_ITEM_DIFFICULTY = 355
+    PASSIVE_MAGIC_DMG_MASTERY = 356
+    PASSIVE_MAGIC_RES_REDUC = 357
+
+@dataclass
+class Stat:
+    def __init__(self, type: StatType, value: int):
+        self.type = type
+        self.value = value
 
 #####################################
 ## characters                      ##
@@ -1717,19 +2086,24 @@ class MonsterTier:
 
 class Monster(Unit):
     @property
-    def name(self) -> str:
-        addr = self._internal.pMonsterDatawName
-        if not addr:
-            return ""
-        return wstring_at(addr)
-
-    @property
     def type(self) -> MonsterType:
         return MonsterType(self._internal.dwTxtFileNo)
 
     @property
     def mode(self) -> int:
         return self._internal.dwMode
+
+    @property
+    def dead(self) -> bool:
+        return self.mode == 0 or self.mode == 12
+
+    @property
+    def friendly(self) -> bool:
+        return StatType.ALIGNMENT in self.stats and self.stats[StatType.ALIGNMENT] == 2
+
+    @property
+    def dummy(self) -> bool:
+        return self.name.lower() in ["an evil force", "dummy"]
 
     @property
     def position(self) -> Position:
@@ -1746,6 +2120,15 @@ class Monster(Unit):
             champion = self._internal.pMonsterDatafChamp,
             boss =  self._internal.pMonsterDatafBoss
         )
+
+    @property
+    def stats(self) -> dict[StatType, Stat]:
+        raw_stats = game.get_item_stats(self._internal)
+        if raw_stats is None:
+            return {}
+
+        return {StatType(stat_index): Stat(StatType(stat_index), value) for stat_index, _, value in raw_stats}
+
 
 #####################################
 ## objects                         ##
@@ -3265,374 +3648,8 @@ class ItemType(StrEnum):
 
 
 #####################################
-## stats                           ##
+## items                           ##
 #####################################
-class StatType(IntEnum):
-    STRENGTH = 0
-    ENERGY = 1
-    DEXTERITY = 2
-    VITALITY = 3
-    STAT_POINTS_LEFT = 4
-    NEW_SKILLS = 5
-    HP = 6
-    MAX_HP = 7
-    MANA = 8
-    MAX_MANA = 9
-    STAMINA = 10
-    MAX_STAMINA = 11
-    LEVEL = 12
-    EXP = 13
-    GOLD = 14
-    GOLD_BANK = 15
-    ENHANCED_DEFENSE = 16
-    ENHANCED_MAXIMUM_DAMAGE = 17
-    ENHANCED_MINIMUM_DAMAGE = 18
-    ATTACK_RATING = 19
-    TO_BLOCK = 20
-    MINIMUM_DAMAGE = 21
-    MAXIMUM_DAMAGE = 22
-    SECONDARY_MINIMUM_DAMAGE = 23
-    SECONDARY_MAXIMUM_DAMAGE = 24
-    ENHANCED_DAMAGE = 25
-    MANA_RECOVERY = 26
-    MANA_RECOVERY_BONUS = 27
-    STAMINA_RECOVERY_BONUS = 28
-    LAST_EXPERIENCE = 29
-    NEXT_EXPERIENCE = 30
-    DEFENSE = 31
-    DEFENSE_VS_MISSILES = 32
-    DEFENSE_VS_MELEE = 33
-    DMG_REDUCTION = 34
-    MAGIC_DMG_REDUCTION = 35
-    DMG_REDUCTION_PCT = 36
-    MAGIC_DMG_REDUCTION_PCT = 37
-    MAX_MAGIC_DMG_REDUCT_PCT = 38
-    FIRE_RESIST = 39
-    MAX_FIRE_RESIST = 40
-    LIGHTNING_RESIST = 41
-    MAX_LIGHTNING_RESIST = 42
-    COLD_RESIST = 43
-    MAX_COLD_RESIST = 44
-    POISON_RESIST = 45
-    MAX_POISON_RESIST = 46
-    DAMAGE_AURA = 47
-    MINIMUM_FIRE_DAMAGE = 48
-    MAXIMUM_FIRE_DAMAGE = 49
-    MINIMUM_LIGHTNING_DAMAGE = 50
-    MAXIMUM_LIGHTNING_DAMAGE = 51
-    MINIMUM_MAGICAL_DAMAGE = 52
-    MAXIMUM_MAGICAL_DAMAGE = 53
-    MINIMUM_COLD_DAMAGE = 54
-    MAXIMUM_COLD_DAMAGE = 55
-    COLD_DAMAGE_LENGTH = 56
-    MINIMUM_POISON_DAMAGE = 57
-    MAXIMUM_POISON_DAMAGE = 58
-    POISON_DAMAGE_LENGTH = 59
-    LIFE_LEECH = 60
-    MAX_LIFE_STOLEN_PER_HIT = 61
-    MANA_LEECH = 62
-    MAX_MANA_STOLEN_PER_HIT = 63
-    MINIMUM_STAMINA_DRAIN = 64
-    MAXIMUM_STAMINA_DRAIN = 65
-    STUN_LENGTH = 66
-    VELOCITY_PERCENT = 67
-    ATTACK_RATE = 68
-    OTHER_ANIMATION_RATE = 69
-    AMMO_QUANTITY = 70
-    VALUE = 71
-    DURABILITY = 72
-    MAX_DURABILITY = 73
-    REPLENISH_LIFE = 74
-    ENHANCED_MAX_DURABILITY = 75
-    ENHANCED_LIFE = 76
-    ENHANCED_MANA = 77
-    ATTACKER_TAKES_DAMAGE = 78
-    GOLD_FIND = 79
-    MAGIC_FIND = 80
-    KNOCKBACK = 81
-    TIME_DURATION = 82
-    CLASS_SKILLS = 83
-    UNSENT_PARAMETER = 84
-    ADD_EXPERIENCE = 85
-    LIFE_AFTER_EACH_KILL = 86
-    REDUCE_VENDOR_PRICES = 87
-    DOUBLE_HERB_DURATION = 88
-    LIGHT_RADIUS = 89
-    LIGHT_COLOUR = 90
-    REDUCED_REQUIREMENTS = 91
-    REDUCED_LEVEL_REQ = 92
-    INCREASED_ATTACK_SPEED = 93
-    REDUCED_LEVEL_REQ_PCT = 94
-    LAST_BLOCK_FRAME = 95
-    FASTER_RUN_WALK = 96
-    NON_CLASS_SKILL = 97
-    STATE = 98
-    FASTER_HIT_RECOVERY = 99
-    MONSTER_PLAYER_COUNT = 100
-    SKILL_POISON_OVERRIDE_LEN = 101
-    FASTER_BLOCK = 102
-    SKILL_BYPASS_UNDEAD = 103
-    SKILL_BYPASS_DEMONS = 104
-    FASTER_CAST = 105
-    SKILL_BYPASS_BEASTS = 106
-    SINGLE_SKILL = 107
-    SLAIN_MONSTERS_RIP = 108
-    CURSE_RESISTANCE = 109
-    POISON_LENGTH_REDUCTION = 110
-    ADDS_DAMAGE = 111
-    HIT_CAUSES_MONSTER_TO_FLEE = 112
-    HIT_BLINDS_TARGET = 113
-    DAMAGE_TO_MANA = 114
-    IGNORE_TARGETS_DEFENSE = 115
-    REDUCE_TARGETS_DEFENSE = 116
-    PREVENT_MONSTER_HEAL = 117
-    HALF_FREEZE_DURATION = 118
-    TO_HIT_PERCENT = 119
-    MONSTER_DEF_DUCT_PER_HIT = 120
-    DAMAGE_TO_DEMONS = 121
-    DAMAGE_TO_UNDEAD = 122
-    ATTACK_RATING_VS_DEMONS = 123
-    ATTACK_RATING_VS_UNDEAD = 124
-    THROWABLE = 125
-    ELEMENTAL_SKILLS = 126
-    ALL_SKILLS = 127
-    ATTACKER_TAKES_LTNG_DMG = 128
-    IRON_MAIDEN_LEVEL = 129
-    LIFE_TAP_LEVEL = 130
-    THORNS_PERCENT = 131
-    BONE_ARMOR = 132
-    MAXIMUM_BONE_ARMOR = 133
-    FREEZE_TARGET = 134
-    OPEN_WOUNDS = 135
-    CRUSHING_BLOW = 136
-    KICK_DAMAGE = 137
-    MANA_AFTER_EACH_KILL = 138
-    LIFE_AFTER_EACH_DEMON_KILL = 139
-    EXTRA_BLOOD = 140
-    DEADLY_STRIKE = 141
-    FIRE_ABSORB_PERCENT = 142
-    FIRE_ABSORB = 143
-    LIGHTNING_ABSORB_PERCENT = 144
-    LIGHTNING_ABSORB = 145
-    MAGIC_ABSORB_PERCENT = 146
-    MAGIC_ABSORB = 147
-    COLD_ABSORB_PERCENT = 148
-    COLD_ABSORB = 149
-    SLOW = 150
-    AURA = 151
-    INDESTRUCTIBLE = 152
-    CANNOT_BE_FROZEN = 153
-    STAMINA_DRAIN_PERCENT = 154
-    REANIMATE = 155
-    PIERCING_ATTACK = 156
-    FIRES_MAGIC_ARROWS = 157
-    FIRE_EXPLOSIVE_ARROWS = 158
-    MINIMUM_THROWING_DAMAGE = 159
-    MAXIMUM_THROWING_DAMAGE = 160
-    SKILL_HAND_OF_ATHENA = 161
-    SKILL_STAMINA_PERCENT = 162
-    SKILL_PASSIVE_STAMINA_PCT = 163
-    CONCENTRATION = 164
-    ENCHANT = 165
-    PIERCE = 166
-    CONVICTION = 167
-    CHILLING_ARMOR = 168
-    FRENZY = 169
-    DECREPIFY = 170
-    SKILL_ARMOR_PERCENT = 171
-    ALIGNMENT = 172
-    TARGET_0 = 173
-    TARGET_1 = 174
-    GOLD_LOST = 175
-    CONVERSION_LEVEL = 176
-    CONVERSION_MAXIMUM_LIFE = 177
-    UNIT_DO_OVERLAY = 178
-    ATTACK_RATING_VS_MONSTER_TYPE = 179
-    DAMAGE_TO_MONSTER_TYPE = 180
-    FADE = 181
-    ARMOR_OVERRIDE_PERCENT = 182
-    UNUSED_183 = 183
-    UNUSED_184 = 184
-    UNUSED_185 = 185
-    UNUSED_186 = 186
-    UNUSED_187 = 187
-    SKILL_TAB = 188
-    UNUSED_189 = 189
-    UNUSED_190 = 190
-    UNUSED_191 = 191
-    UNUSED_192 = 192
-    UNUSED_193 = 193
-    SOCKETS = 194
-    SKILL_ON_STRIKING = 195
-    SKILL_ON_KILL = 196
-    SKILL_ON_DEATH = 197
-    SKILL_ON_HIT = 198
-    SKILL_ON_LEVEL_UP = 199
-    UNUSED_200 = 200
-    SKILL_WHEN_STRUCK = 201
-    UNUSED_202 = 202
-    UNUSED_203 = 203
-    CHARGED = 204
-    UNUSED_205 = 205
-    UNUSED_206 = 206
-    UNUSED_207 = 207
-    UNUSED_208 = 208
-    UNUSED_209 = 209
-    UNUSED_210 = 210
-    UNUSED_211 = 211
-    UNUSED_212 = 212
-    DEFENSE_PER_LEVEL = 213
-    ENHANCED_DEFENSE_PER_LEVEL = 214
-    LIFE_PER_LEVEL = 215
-    MANA_PER_LEVEL = 216
-    MAX_DAMAGE_PER_LEVEL = 217
-    MAX_ENHANCED_DMG_PER_LEVEL = 218
-    STRENGTH_PER_LEVEL = 219
-    DEXTERITY_PER_LEVEL = 220
-    ENERGY_PER_LEVEL = 221
-    VITALITY_PER_LEVEL = 222
-    ATTACK_RATING_PER_LEVEL = 223
-    BONUS_ATTACK_RATING_PER_LEVEL = 224
-    MAX_COLD_DAMAGE_PER_LEVEL = 225
-    MAX_FIRE_DAMAGE_PER_LEVEL = 226
-    MAX_LIGHTNING_DAMAGE_PER_LEVEL = 227
-    MAX_POISON_DAMAGE_PER_LEVEL = 228
-    COLD_RES_PER_LEVEL = 229
-    FIRE_RES_PER_LEVEL = 230
-    LIGHTNING_RES_PER_LEVEL = 231
-    POISON_RES_PER_LEVEL = 232
-    COLD_ABSORB_PER_LEVEL = 233
-    FIRE_ABSORB_PER_LEVEL = 234
-    LIGHTNING_ABSORB_PER_LEVEL = 235
-    POISON_ABSORB_PER_LEVEL = 236
-    THORNS_PER_LEVEL = 237
-    EXTRA_GOLD_PER_LEVEL = 238
-    MAGIC_FIND_PER_LEVEL = 239
-    STAMINA_REGEN_PER_LEVEL = 240
-    STAMINA_PER_LEVEL = 241
-    DAMAGE_TO_DEMONS_PER_LEVEL = 242
-    DAMAGE_TO_UNDEAD_PER_LEVEL = 243
-    ATTACK_RATING_VS_DEMONS_PER_LEVEL = 244
-    ATTACK_RATING_VS_UNDEAD_PER_LEVEL = 245
-    CRUSHING_BLOW_PER_LEVEL = 246
-    OPEN_WOUNDS_PER_LEVEL = 247
-    KICK_DAMAGE_PER_LEVEL = 248
-    DEADLY_STRIKE_PER_LEVEL = 249
-    FIND_GEMS_PER_LEVEL = 250
-    REPAIRS_DURABILITY = 251
-    REPLENISHES_QUANTITY = 252
-    INCREASED_STACK_SIZE = 253
-    FIND_ITEM = 254
-    SLASH_DAMAGE = 255
-    SLASH_DAMAGE_PERCENT = 256
-    CRUSH_DAMAGE = 257
-    CRUSH_DAMAGE_PERCENT = 258
-    THRUST_DAMAGE = 259
-    THRUST_DAMAGE_PERCENT = 260
-    SLASH_DAMAGE_ABSORPTION = 261
-    CRUSH_DAMAGE_ABSORPTION = 262
-    THRUST_DAMAGE_ABSORPTION = 263
-    SLASH_DAMAGE_ABSORB_PCT = 264
-    CRUSH_DAMAGE_ABSORB_PCT = 265
-    THRUST_DAMAGE_ABSORB_PCT = 266
-    DEFENSE_PER_TIME = 267
-    ENHANCED_DEFENSE_PER_TIME = 268
-    LIFE_PER_TIME = 269
-    MANA_PER_TIME = 270
-    MAX_DAMAGE_PER_TIME = 271
-    MAX_ENHANCED_DMG_PER_TIME = 272
-    STRENGTH_PER_TIME = 273
-    DEXTERITY_PER_TIME = 274
-    ENERGY_PER_TIME = 275
-    VITALITY_PER_TIME = 276
-    ATTACK_RATING_PER_TIME = 277
-    CHANCE_TO_HIT_PER_TIME = 278
-    MAX_COLD_DAMAGE_PER_TIME = 279
-    MAX_FIRE_DAMAGE_PER_TIME = 280
-    MAX_LIGHTNING_DAMAGE_PER_TIME = 281
-    MAX_DAMAGE_PER_POISON = 282
-    COLD_RES_PER_TIME = 283
-    FIRE_RES_PER_TIME = 284
-    LIGHTNING_RES_PER_TIME = 285
-    POISON_RES_PER_TIME = 286
-    COLD_ABSORPTION_PER_TIME = 287
-    FIRE_ABSORPTION_PER_TIME = 288
-    LIGHTNING_ABSORB_PER_TIME = 289
-    POISON_ABSORB_PER_TIME = 290
-    EXTRA_GOLD_PER_TIME = 291
-    MAGIC_FIND_PER_TIME = 292
-    REGEN_STAMINA_PER_TIME = 293
-    STAMINA_PER_TIME = 294
-    DAMAGE_TO_DEMONS_PER_TIME = 295
-    DAMAGE_TO_UNDEAD_PER_TIME = 296
-    ATTACK_RATING_VS_DEMONS_PER_TIME = 297
-    ATTACK_RATING_VS_UNDEAD_PER_TIME = 298
-    CRUSHING_BLOW_PER_TIME = 299
-    OPEN_WOUNDS_PER_TIME = 300
-    KICK_DAMAGE_PER_TIME = 301
-    DEADLY_STRIKE_PER_TIME = 302
-    FIND_GEMS_PER_TIME = 303
-    ENEMY_COLD_RES_REDUCTION = 304
-    ENEMY_FIRE_RES_REDUCTION = 305
-    ENEMY_LIGHT_RES_REDUCTION = 306
-    ENEMY_POISON_RES_REDUCTION = 307
-    DAMAGE_VS_MONSTERS = 308
-    ENHANCED_DMG_VS_MONSTERS = 309
-    ATTACK_RATING_VS_MONSTERS = 310
-    BONUS_ATTACK_RATING_VS_MONSTERS = 311
-    DEFENSE_VS_MONSTERS = 312
-    ENHANCED_DEF_VS_MONSTERS = 313
-    FIRE_DAMAGE_LENGTH = 314
-    MIN_FIRE_DAMAGE_LENGTH = 315
-    MAX_FIRE_DAMAGE_LENGTH = 316
-    PROGRESSIVE_DAMAGE = 317
-    PROGRESSIVE_STEAL = 318
-    PROGRESSIVE_OTHER = 319
-    PROGRESSIVE_FIRE = 320
-    PROGRESSIVE_COLD = 321
-    PROGRESSIVE_LIGHTNING = 322
-    EXTRA_CHARGES = 323
-    PROGRESSIVE_ATTACK_RATING = 324
-    POISON_COUNT = 325
-    DAMAGE_FRAME_RATE = 326
-    PIERCE_IDX = 327
-    FIRE_MASTERY = 328
-    LIGHTNING_MASTERY = 329
-    COLD_MASTERY = 330
-    POISON_MASTERY = 331
-    PASSIVE_ENEMY_FIRE_RES_REDUC = 332
-    PASSIVE_ENEMY_LIGHTNING_RES_REDUC = 333
-    PASSIVE_ENEMY_COLD_RES_REDUC = 334
-    PASSIVE_ENEMY_POISON_RES_REDUC = 335
-    CRITICAL_STRIKE = 336
-    DODGE = 337
-    AVOID = 338
-    EVADE = 339
-    WARMTH = 340
-    MELEE_ARM_MASTERY = 341
-    MELEE_DAMAGE_MASTERY = 342
-    MELEE_CRIT_HIT_MASTERY = 343
-    THROWN_WEAPON_ARM_MASTERY = 344
-    THROWN_WEAPON_DMG_MASTERY = 345
-    THROWN_CRIT_HIT_MASTERY = 346
-    WEAPON_BLOCK = 347
-    SUMMON_RESIST = 348
-    MODIFIER_LIST_SKILL = 349
-    MODIFIER_LIST_LEVEL = 350
-    LAST_SENT_LIFE_PERCENT = 351
-    SOURCE_UNIT_TYPE = 352
-    SOURCE_UNIT_ID = 353
-    SHORT_PARAMETER_1 = 354
-    QUEST_ITEM_DIFFICULTY = 355
-    PASSIVE_MAGIC_DMG_MASTERY = 356
-    PASSIVE_MAGIC_RES_REDUC = 357
-
-@dataclass
-class Stat:
-    def __init__(self, type: StatType, value: int):
-        self.type = type
-        self.value = value
-
 ItemTypeDict = {item.name: item.value for category in [
     Helms, Armor, Shields, Gloves, Boots, Belts, DruidPelts, BarbarianHelms,
     PaladinShields, NecromancerShrunkenHeads, Axes, Maces, Swords, Daggers,
@@ -3717,13 +3734,21 @@ class Item(Unit):
             self._internal.pItemPathdwPosY
         )
 
+    # @property
+    # def stats(self) -> list[Stat]:
+    #     raw_stats = game.get_item_stats(self._internal)
+    #     if raw_stats is None:
+    #         return []
+    #
+    #     return [Stat(StatType(stat_index), value) for stat_index, _, value in raw_stats]
+
     @property
-    def stats(self) -> list[Stat]:
+    def stats(self) -> dict[StatType, Stat]:
         raw_stats = game.get_item_stats(self._internal)
         if raw_stats is None:
-            return []
+            return {}
 
-        return [Stat(StatType(stat_index), value) for stat_index, _, value in raw_stats]
+        return {StatType(stat_index): Stat(StatType(stat_index), value) for stat_index, _, value in raw_stats}
 
 #####################################
 ## drawing                         ##
@@ -3838,7 +3863,13 @@ def get_all_controls() -> list[Control]:
     return results
 
 def get_all_items() -> list[Item]:
-    return [u for u in get_nearby_units() if isinstance(u, Item)]
+    results: list[Item] = []
+    for unit in game.get_item_table():
+        if not unit or unit.id == 0:
+            continue
+        results.append(Item(unit))
+
+    return results
 
 def get_all_monsters() -> list[Monster]:
     return [u for u in get_nearby_units() if isinstance(u, Monster)]

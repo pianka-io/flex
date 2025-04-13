@@ -8,7 +8,7 @@ namespace launcher
     {
         public bool IsInstalled { get; set; } = false;
         public string InstalledVersion { get; set; } = "0.0.0";
-        public string LauncherVersion { get; set; } = "0.0.4";
+        public string LauncherVersion { get; set; } = "0.0.6";
         public string InstallPath { get; set; } = "";
         public string CommandLineArguments { get; set; } = "-3dfx";
         

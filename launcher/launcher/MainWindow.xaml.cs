@@ -15,6 +15,8 @@ namespace launcher
     {
         private const string NewsUrl = "https://warnet2025-sanctuary.s3.us-east-2.amazonaws.com/news.json";
         private Settings _settings;
+        private bool _diabloNeedsPatch = false;
+        private List<string> _diabloPatchFiles = new();
         
         private int _backgroundIndex = 1;
         private readonly int _maxBackgrounds = 1;
@@ -37,6 +39,8 @@ namespace launcher
             if (_settings.IsInstalled)
                 await CheckForAndApplyUpdatesAsync("diablo", _settings.InstallPath);
             StartUpdateTimer();
+            DiabloVersionText.Text = $"Diablo II v{_settings.InstalledVersion}";
+            LauncherVersionText.Text = $"Launcher v{_settings.LauncherVersion}";
         }
         
         private void StartUpdateTimer()
@@ -98,7 +102,7 @@ namespace launcher
             string fileName = Path.GetFileName(new Uri(url).AbsolutePath);
             string tempPath = Path.Combine(Path.GetTempPath(), fileName);
 
-            InstallStatusText.Text = $"Downloading {index}/{total}...";
+            InstallStatusText.Text = $"Preparing {index}/{total}...";
             InstallStatusText.Visibility = Visibility.Visible;
             InstallProgressBar.Visibility = Visibility.Visible;
             InstallProgressBar.Value = 0;
@@ -106,29 +110,34 @@ namespace launcher
             InstallStatusText.Width = MainButton.ActualWidth;
             MainButton.IsEnabled = false;
 
-            using var http = new HttpClient();
-            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
-
-            var totalBytes = response.Content.Headers.ContentLength ?? -1L;
-            var canReportProgress = totalBytes > 0;
-
-            using (var inputStream = await response.Content.ReadAsStreamAsync())
-            using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            if (!File.Exists(tempPath))
             {
-                var buffer = new byte[81920];
-                long totalRead = 0;
-                int bytesRead;
+                InstallStatusText.Text = $"Downloading {index}/{total}...";
 
-                while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                using var http = new HttpClient();
+                using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+
+                var totalBytes = response.Content.Headers.ContentLength ?? -1L;
+                var canReportProgress = totalBytes > 0;
+
+                using (var inputStream = await response.Content.ReadAsStreamAsync())
+                using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    await fileStream.WriteAsync(buffer, 0, bytesRead);
-                    totalRead += bytesRead;
+                    var buffer = new byte[81920];
+                    long totalRead = 0;
+                    int bytesRead;
 
-                    if (canReportProgress)
+                    while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
-                        double progress = (double)totalRead / totalBytes * 100;
-                        InstallProgressBar.Value = progress;
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        totalRead += bytesRead;
+
+                        if (canReportProgress)
+                        {
+                            double progress = (double)totalRead / totalBytes * 100;
+                            InstallProgressBar.Value = progress;
+                        }
                     }
                 }
             }
@@ -218,50 +227,64 @@ namespace launcher
             }
             else
             {
+                if (_diabloNeedsPatch)
+                {
+                    if (AnyFilesLocked(_settings.InstallPath, _diabloPatchFiles))
+                    {
+                        MessageBox.Show("Please close Diablo II before patching!");
+                    }
+                    await CheckForAndApplyUpdatesAsync("diablo", _settings.InstallPath);
+                    if (!_diabloNeedsPatch)
+                        MainButton.Content = "Play Diablo II";
+                    return;
+                }
                 LaunchGame();
             }
         }
 
+        private void RunInjector(int pid, string dll)
+        {
+            var injectorPath = Path.Combine(_settings.InstallPath, "injector.exe");
+            var injectorInfo = new ProcessStartInfo
+            {
+                FileName = injectorPath,
+                Arguments = $"{pid} \"{dll}\"",
+                UseShellExecute = true,
+                Verb = "runas", // triggers UAC prompt for admin
+                WorkingDirectory = _settings.InstallPath
+            };
+
+            Process.Start(injectorInfo);
+        }
+        
         private void LaunchGame()
         {
-            try
+            var gamePath = Path.Combine(_settings.InstallPath, "Game.exe");
+            if (!File.Exists(gamePath))
+                return;
+
+            var startInfo = new ProcessStartInfo(gamePath)
             {
-                var gamePath = Path.Combine(_settings.InstallPath, "Game.exe");
-                if (!File.Exists(gamePath))
-                    return;
+                Arguments = _settings.CommandLineArguments,
+                UseShellExecute = false,
+                WorkingDirectory = _settings.InstallPath,
+            };
 
-                var startInfo = new ProcessStartInfo(gamePath)
-                {
-                    Arguments = _settings.CommandLineArguments,
-                    UseShellExecute = false,
-                    WorkingDirectory = _settings.InstallPath,
-                };
+            var process = new Process { StartInfo = startInfo };
+            process = Kernel32.StartSuspended(process, startInfo);
+            Kernel32.Resume(process);
+            process.WaitForInputIdle();
 
-                var process = new Process { StartInfo = startInfo };
-                process = Kernel32.StartSuspended(process, startInfo);
-                Kernel32.Resume(process);
-                process.WaitForInputIdle();
-
-                var pid = process.Id;
-                var pythonDll = Path.Combine(_settings.InstallPath, "Python3", "python313.dll");
-                var flexlibDll = Path.Combine(_settings.InstallPath, "flexlib.dll");
-                var injectorPath = Path.Combine(_settings.InstallPath, "injector.exe");
-
-                var injectorInfo = new ProcessStartInfo
-                {
-                    FileName = injectorPath,
-                    Arguments = $"{pid} \"{pythonDll}\" \"{flexlibDll}\"",
-                    UseShellExecute = true,
-                    Verb = "runas", // triggers UAC prompt for admin
-                    WorkingDirectory = _settings.InstallPath
-                };
-
-                Process.Start(injectorInfo);
-            }
-            catch
-            {
-                // intentionally silent
-            }
+            var pid = process.Id;
+            var sgD2FreeResDll = Path.Combine(_settings.InstallPath, "SGD2FreeRes.dll");
+            var pythonDll = Path.Combine(_settings.InstallPath, "Python3", "python313.dll");
+            var flexlibDll = Path.Combine(_settings.InstallPath, "flexlib.dll");
+            
+            RunInjector(pid, sgD2FreeResDll);
+            Thread.Sleep(100);
+            RunInjector(pid, pythonDll);
+            Thread.Sleep(100);
+            RunInjector(pid, flexlibDll);
         }
 
         private void ShowContextMenu_Click(object sender, RoutedEventArgs e)
@@ -334,6 +357,30 @@ namespace launcher
             WindowState = WindowState.Minimized;
         }
         
+        private bool IsFileLocked(string path)
+        {
+            try
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                return false;
+            }
+            catch (IOException)
+            {
+                return true;
+            }
+        }
+        
+        private bool AnyFilesLocked(string installDir, List<string> files)
+        {
+            foreach (var file in files)
+            {
+                var targetPath = Path.Combine(installDir, file);
+                if (File.Exists(targetPath) && IsFileLocked(targetPath))
+                    return true;
+            }
+            return false;
+        }
+        
         private async Task CheckForAndApplyUpdatesAsync(string type, string installDir)
         {
             try
@@ -349,11 +396,23 @@ namespace launcher
 
                 if (remoteVersion == currentVersion)
                     return;
-
+                
                 string listUrl =
                     $"{baseUrl}{type}/{remoteVersion}/filelist.json?ts={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
                 var fileListJson = await http.GetStringAsync(listUrl);
                 var files = JsonSerializer.Deserialize<List<string>>(fileListJson);
+
+                if (type == "diablo")
+                {
+                    if (AnyFilesLocked(installDir, files))
+                    {
+                        _diabloNeedsPatch = true;
+                        _diabloPatchFiles = files;
+                        Dispatcher.Invoke(() => MainButton.Content = "Patch Diablo II");
+                        return;
+                    }
+                    _diabloNeedsPatch = false;
+                }
 
                 InstallStatusText.Visibility = Visibility.Visible;
                 InstallProgressBar.Visibility = Visibility.Visible;
@@ -428,6 +487,11 @@ namespace launcher
             {
                 MessageBox.Show($"Update failed for {type}: {ex}");
             }
+            Dispatcher.Invoke(() =>
+            {
+                DiabloVersionText.Text = $"Diablo II v{_settings.InstalledVersion}";
+                LauncherVersionText.Text = $"Launcher v{_settings.LauncherVersion}";
+            });
         }
     }
 }

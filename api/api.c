@@ -393,7 +393,7 @@ static PyObject *py_get_item_stats(PyObject *self, PyObject *args) {
     }
 
     if (!unit->pStats) {
-        write_log("ERR", "Unit has no stats.");
+        // write_log("ERR", "Unit has no stats.");
         Py_RETURN_NONE;
     }
 

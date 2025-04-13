@@ -73,8 +73,8 @@ BOOL InjectDLL(DWORD pid, const wchar_t *dllPath) {
 }
 
 int wmain(int argc, wchar_t *argv[]) {
-    if (argc != 4) {
-        fprintf(stderr, "Usage: injector.exe <PID> <python3.dll> <flexlib.dll>\n");
+    if (argc != 3) {
+        fprintf(stderr, "Usage: injector.exe <PID> <dll>\n");
         return 1;
     }
 
@@ -89,15 +89,9 @@ int wmain(int argc, wchar_t *argv[]) {
         return 1;
     }
 
-    wprintf(L"[INFO] Injecting Python: %s\n", argv[2]);
+    wprintf(L"[INFO] Injecting: %s\n", argv[2]);
     if (!InjectDLL(pid, argv[2])) {
-        fprintf(stderr, "[ERR] Failed to inject python DLL\n");
-        return 1;
-    }
-
-    wprintf(L"[INFO] Injecting Flexlib: %s\n", argv[3]);
-    if (!InjectDLL(pid, argv[3])) {
-        fprintf(stderr, "[ERR] Failed to inject flexlib DLL\n");
+        fprintf(stderr, "[ERR] Failed to inject dll\n");
         return 1;
     }
 

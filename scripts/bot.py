@@ -24,7 +24,7 @@ async def when_main_menu():
 @loop(LoopType.CLIENT_STATE, ClientState.LOGIN)
 async def when_login():
     Controls.username.text = "flex"
-    Controls.password.text = ""
+    Controls.password.text = "pianka"
     await Controls.log_in.click()
 
 @loop(LoopType.CLIENT_STATE, ClientState.CHARACTER_SELECT)
@@ -52,48 +52,55 @@ async def when_lobby():
 #####################################
 ## in game                         ##
 #####################################
-path: Optional[list[Position]] = None
-@loop(LoopType.DRAW_AUTOMAP)
-def draw_automap() -> list[Element]:
-    global path
-    game = get_game()
-    if game is None: return []
-    if not game.ready: return []
-
-    elements = []
-
-    path_copy = list(path) if path else None
-    if path_copy and len(path_copy) > 1:
-        for i in range(len(path_copy) - 1):
-            elements.append(LineElement(path_copy[i], path_copy[i + 1], 0x5B))
-
-    return elements
-
-@loop(LoopType.CLIENT_STATE, ClientState.IN_GAME)
-async def when_in_game():
-    global path
-    game = get_game()
-    if game is None: return
-    if not game.ready: return
-
-    player = get_player()
-    if not player.level_data: return
-
-    akara_preset: Optional[Position] = None
-    for room in player.level_data.rooms:
-        for preset in room.presets:
-            if preset.preset_type == PresetType.MONSTER:
-                if MonsterType(preset.type) == MonsterType.AKARA:
-                    akara_preset = preset.position
-                    break
-
-    akara: Optional[Monster] = None
-    for unit in get_nearby_units():
-        if isinstance(unit, Monster):
-            if unit.type == MonsterType.AKARA:
-                akara = unit
-
-    if not akara:
-        path = find_room_path(player.position, akara_preset)
-    else:
-        path = find_room_path(player.position, akara.position)
+# path: Optional[list[Position]] = None
+# @loop(LoopType.DRAW_AUTOMAP)
+# def draw_automap() -> list[Element]:
+#     global path
+#     game = get_game()
+#     if game is None: return []
+#     if not game.ready: return []
+#
+#     elements = []
+#
+#     path_copy = list(path) if path else None
+#     if path_copy and len(path_copy) > 1:
+#         for i in range(len(path_copy) - 1):
+#             elements.append(LineElement(path_copy[i], path_copy[i + 1], 0x5B))
+#
+#     return elements
+#
+# @loop(LoopType.CLIENT_STATE, ClientState.IN_GAME)
+# async def when_in_game():
+#     global path
+#     game = get_game()
+#     if game is None: return
+#     if not game.ready: return
+#
+#     player = get_player()
+#     if not player.level_data: return
+#
+#     akara_preset = find_akara_preset(player)
+#     akara = find_akara()
+#
+#     if not akara:
+#         path = find_room_path(player.position, akara_preset)
+#     else:
+#         path = find_room_path(player.position, akara.position)
+#
+# def find_akara_preset(player: Character) -> Optional[Position]:
+#     akara_preset: Optional[Position] = None
+#     for room in player.level_data.rooms:
+#         for preset in room.presets:
+#             if preset.preset_type == PresetType.MONSTER:
+#                 if MonsterType(preset.type) == MonsterType.AKARA:
+#                     akara_preset = preset.position
+#                     break
+#     return akara_preset
+#
+# def find_akara() -> Optional[Monster]:
+#     akara: Optional[Monster] = None
+#     for unit in get_nearby_units():
+#         if isinstance(unit, Monster):
+#             if unit.type == MonsterType.AKARA:
+#                 akara = unit
+#     return akara

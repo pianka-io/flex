@@ -8,12 +8,8 @@ async def flex_loop():
 
 async def ensure_revealed():
     global last_game
-
     game = get_game()
-    if game is None: return
-    if not game.ready: return
-
-    await pause(100)
+    if game is None or not game.ready: return []
 
     if game.name != last_game:
         info("Revealing automap...")
@@ -24,13 +20,19 @@ async def ensure_revealed():
 @loop(LoopType.DRAW_AUTOMAP)
 def draw_automap() -> list[Element]:
     game = get_game()
-    if game is None: return []
-    if not game.ready: return []
+    if game is None or not game.ready: return []
 
+    player = get_player()
     elements = []
 
     for monster in get_all_monsters():
+        if monster.dead or monster.friendly or monster.dummy or len(monster.stats) == 0: continue
         cross = CrossElement(0x5B, monster.position)
         elements.append(cross)
+
+    for item in get_all_items():
+        if item.owner and item.owner.id != player.id and item.quality == Quality.UNIQUE:
+            cross = CrossElement(0x97, item.position)
+            elements.append(cross)
 
     return elements
