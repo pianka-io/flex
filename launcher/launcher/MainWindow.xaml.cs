@@ -292,6 +292,10 @@ namespace launcher
             OptionsPopup.IsOpen = true;
         }
 
+        private void Settings_Click(object sender, RoutedEventArgs e)
+        {
+        }
+
         private void Uninstall_Click(object sender, RoutedEventArgs e)
         {
             // Optional: confirm uninstall

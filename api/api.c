@@ -67,6 +67,7 @@ static PyObject *build_player_unit(struct UnitAny *player) {
     py_unit->id = player->dwUnitId;
     py_unit->type = player->dwType;
     py_unit->unit = player;
+    py_unit->dwMode = player->dwMode;
     if (player->pPath) {
         py_unit->pPathxPos = player->pPath->xPos;
         py_unit->pPathyPos = player->pPath->yPos;
@@ -80,8 +81,13 @@ static PyObject *build_player_unit(struct UnitAny *player) {
 }
 
 static PyObject *py_get_player_unit(PyObject *self, PyObject *args) {
-    struct UnitAny *player = GetPlayerUnit();
-    return build_player_unit(player);
+    __try {
+        struct UnitAny *player = GetPlayerUnit();
+        return build_player_unit(player);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_player_unit");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyObject *build_item_unit(struct UnitAny *item) {
@@ -89,6 +95,7 @@ static PyObject *build_item_unit(struct UnitAny *item) {
     py_unit->id = item->dwUnitId;
     py_unit->type = item->dwType;
     py_unit->unit = item;
+    py_unit->dwMode = item->dwMode;
     py_unit->dwTxtFileNo = item->dwTxtFileNo;
     py_unit->pItemDatadwFlags = item->pItemData->dwFlags;
     py_unit->pItemDatadwItemLevel = item->pItemData->dwItemLevel;
@@ -125,67 +132,92 @@ static PyObject *build_monster_unit(struct UnitAny *monster) {
 }
 
 static PyObject *py_get_item_table(PyObject *self, PyObject *args) {
-    PyObject *list = PyList_New(128);
-    for (int i = 0; i < 128; i++) {
-        struct UnitAny *unit = ItemTable[i];
+    __try {
+        PyObject *list = PyList_New(128);
+        for (int i = 0; i < 128; i++) {
+            struct UnitAny *unit = ItemTable[i];
 
-        if (unit) {
-            PyObject *item = build_item_unit(unit);
-            PyList_SET_ITEM(list, i, item);
-        } else {
-            Py_INCREF(Py_None);
-            PyList_SET_ITEM(list, i, Py_None);
+            if (unit) {
+                PyObject *item = build_item_unit(unit);
+                PyList_SET_ITEM(list, i, item);
+            } else {
+                Py_INCREF(Py_None);
+                PyList_SET_ITEM(list, i, Py_None);
+            }
         }
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_item_table");
+        Py_RETURN_NONE;
     }
-    return list;
 }
 
 static PyObject *py_get_nearby_monsters(PyObject *self, PyObject *args) {
-    struct UnitAny *player = GetPlayerUnit();
-    PyObject *list = PyList_New(128);
+    __try {
+        struct UnitAny *player = GetPlayerUnit();
+        PyObject *list = PyList_New(128);
 
-    for (struct Room1* room1 = player->pAct->pRoom1; room1; room1 = room1->pRoomNext) {
-        for (struct UnitAny* unit = room1->pUnitFirst; unit; unit = unit->pListNext) {
-            PyObject *monster = build_monster_unit(unit);
-            PyList_Append(list, monster);
+        for (struct Room1* room1 = player->pAct->pRoom1; room1; room1 = room1->pRoomNext) {
+            for (struct UnitAny* unit = room1->pUnitFirst; unit; unit = unit->pListNext) {
+                PyObject *monster = build_monster_unit(unit);
+                PyList_Append(list, monster);
+            }
         }
-    }
 
-    return list;
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_nearby_monsters");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyObject *py_get_monster_table(PyObject *self, PyObject *args) {
-    PyObject *list = PyList_New(128);
-    for (int i = 0; i < 128; i++) {
-        struct UnitAny *unit = MonsterTable[i];
+    __try {
+        PyObject *list = PyList_New(128);
+        for (int i = 0; i < 128; i++) {
+            struct UnitAny *unit = MonsterTable[i];
 
-        if (unit) {
-            PyObject *item = build_monster_unit(unit);
-            PyList_SET_ITEM(list, i, item);
-        } else {
-            Py_INCREF(Py_None);
-            PyList_SET_ITEM(list, i, Py_None);
+            if (unit) {
+                PyObject *item = build_monster_unit(unit);
+                PyList_SET_ITEM(list, i, item);
+            } else {
+                Py_INCREF(Py_None);
+                PyList_SET_ITEM(list, i, Py_None);
+            }
         }
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_monster_table");
+        Py_RETURN_NONE;
     }
-    return list;
 }
 
 static PyObject *py_interact(PyObject *self, PyObject *args) {
-    uint32_t unit_id, unit_type;
-    if (!PyArg_ParseTuple(args, "II", &unit_id, &unit_type)) {
-        return NULL;
+    __try {
+        uint32_t unit_id, unit_type;
+        if (!PyArg_ParseTuple(args, "II", &unit_id, &unit_type)) {
+            return NULL;
+        }
+        send_pick_up_item(unit_id, unit_type);
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_interact");
+        Py_RETURN_NONE;
     }
-    send_pick_up_item(unit_id, unit_type);
-    Py_RETURN_NONE;
 }
 
 static PyObject *py_write_log(PyObject *self, PyObject *args) {
-    const char *level, *message;
-    if (!PyArg_ParseTuple(args, "ss", &level, &message)) {
-        return NULL;
+    __try {
+        const char *level, *message;
+        if (!PyArg_ParseTuple(args, "ss", &level, &message)) {
+            return NULL;
+        }
+        write_log(level, "%s", message);
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_write_log");
+        Py_RETURN_NONE;
     }
-    write_log(level, "%s", message);
-    Py_RETURN_NONE;
 }
 
 static PyObject *flex_loop_functions = NULL;
@@ -355,88 +387,103 @@ void automap_loop(void) {
 }
 
 static PyObject *py_get_item_code(PyObject *self, PyObject *args) {
-    uint32_t txt_file_no;
-    if (!PyArg_ParseTuple(args, "I", &txt_file_no)) {
-        return NULL;
-    }
-
-    struct UnitAny* pUnit = NULL;
-
-    for (int i = 0; i < 128; i++) {
-        if (ItemTable[i] && ItemTable[i]->dwTxtFileNo == txt_file_no) {
-            pUnit = ItemTable[i];
-            break;
-        }
-    }
-
-    if (!pUnit) {
-        Py_RETURN_NONE;
-    }
-
-    char itemCode[4] = {0};
-    get_item_code(pUnit, itemCode);
-
-    return PyUnicode_FromString(itemCode);
-}
-
-static PyObject *py_get_item_stats(PyObject *self, PyObject *args) {
-    PyUnit *py_unit;
-    if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
-        write_log("ERR", "Failed to parse PyUnit argument.");
-        return NULL;
-    }
-
-    struct UnitAny *unit = py_unit->unit;
-    if (!unit) {
-        write_log("ERR", "Unit pointer is NULL in get_item_stats.");
-        Py_RETURN_NONE;
-    }
-
-    if (!unit->pStats) {
-        // write_log("ERR", "Unit has no stats.");
-        Py_RETURN_NONE;
-    }
-
-    struct StatList *statList = unit->pStats; //GetStatList(unit, NULL, 0x40);
-    if (!statList) {
-        write_log("ERR", "GetStatList returned NULL.");
-        Py_RETURN_NONE;
-    }
-
-    struct Stat* stats = statList->StatVec.pStats;
-    uint32_t statCount = statList->StatVec.wCount;
-
-    PyObject *pyList = PyList_New(statCount);
-    if (!pyList) {
-        return NULL;
-    }
-
-    for (uint32_t i = 0; i < statCount; i++) {
-        PyObject *pyTuple = PyTuple_New(3);
-        if (!pyTuple) {
-            Py_DECREF(pyList);
+    __try {
+        uint32_t txt_file_no;
+        if (!PyArg_ParseTuple(args, "I", &txt_file_no)) {
             return NULL;
         }
 
-        PyTuple_SetItem(pyTuple, 0, PyLong_FromUnsignedLong(stats[i].wStatIndex));
-        PyTuple_SetItem(pyTuple, 1, PyLong_FromUnsignedLong(stats[i].wSubIndex));
-        PyTuple_SetItem(pyTuple, 2, PyLong_FromUnsignedLong(stats[i].dwStatValue));
+        struct UnitAny* pUnit = NULL;
 
-        PyList_SetItem(pyList, i, pyTuple);
+        for (int i = 0; i < 128; i++) {
+            if (ItemTable[i] && ItemTable[i]->dwTxtFileNo == txt_file_no) {
+                pUnit = ItemTable[i];
+                break;
+            }
+        }
+
+        if (!pUnit) {
+            Py_RETURN_NONE;
+        }
+
+        char itemCode[4] = {0};
+        get_item_code(pUnit, itemCode);
+
+        return PyUnicode_FromString(itemCode);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_item_code");
+        Py_RETURN_NONE;
     }
+}
 
-    return pyList;
+static PyObject *py_get_item_stats(PyObject *self, PyObject *args) {
+    __try {
+        PyUnit *py_unit;
+        if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
+            write_log("ERR", "Failed to parse PyUnit argument.");
+            return NULL;
+        }
+
+        struct UnitAny *unit = py_unit->unit;
+        if (!unit) {
+            write_log("ERR", "Unit pointer is NULL in get_item_stats.");
+            Py_RETURN_NONE;
+        }
+
+        if (!unit->pStats) {
+            // write_log("ERR", "Unit has no stats.");
+            Py_RETURN_NONE;
+        }
+
+        struct StatList *statList = unit->pStats; //GetStatList(unit, NULL, 0x40);
+        if (!statList) {
+            write_log("ERR", "GetStatList returned NULL.");
+            Py_RETURN_NONE;
+        }
+
+        struct Stat* stats = statList->StatVec.pStats;
+        uint32_t statCount = statList->StatVec.wCount;
+
+        PyObject *pyList = PyList_New(statCount);
+        if (!pyList) {
+            return NULL;
+        }
+
+        for (uint32_t i = 0; i < statCount; i++) {
+            PyObject *pyTuple = PyTuple_New(3);
+            if (!pyTuple) {
+                Py_DECREF(pyList);
+                return NULL;
+            }
+
+            PyTuple_SetItem(pyTuple, 0, PyLong_FromUnsignedLong(stats[i].wStatIndex));
+            PyTuple_SetItem(pyTuple, 1, PyLong_FromUnsignedLong(stats[i].wSubIndex));
+            PyTuple_SetItem(pyTuple, 2, PyLong_FromUnsignedLong(stats[i].dwStatValue));
+
+            PyList_SetItem(pyList, i, pyTuple);
+        }
+
+        return pyList;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_item_stats");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyObject *py_reveal_automap(PyObject *self, PyObject *args) {
-    struct UnitAny *unit = GetPlayerUnit();
-    if (!unit || !unit->pPath || !unit->pPath->pRoom1 || !unit->pPath->pRoom1->pRoom2 || !unit->pPath->pRoom1->pRoom2->pLevel) {
+    __try {
+        struct UnitAny *unit = GetPlayerUnit();
+        if (!unit || !unit->pPath || !unit->pPath->pRoom1 || !unit->pPath->pRoom1->pRoom2 || !unit->pPath->pRoom1->pRoom2->pLevel) {
+            Py_RETURN_NONE;
+        }
+        for (int i = 1; i <= 5; i++) {
+            reveal_act(i);
+        }
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_reveal_automap");
         Py_RETURN_NONE;
     }
-    for (int i = 1; i <= 5; i++) {
-        reveal_act(i);
-    }
-    Py_RETURN_NONE;
 }
 
 static PyMemberDef PyGameInfo_members[] = {
@@ -516,35 +563,40 @@ static PyObject *py_wstring_at(PyObject *self, PyObject *args) {
 }
 
 static PyObject *py_print_game_string(PyObject *self, PyObject *args) {
-    const char *message;
-    int color;
+    __try {
+        const char *message;
+        int color;
 
-    if (!PyArg_ParseTuple(args, "si", &message, &color)) {
-        return NULL;
+        if (!PyArg_ParseTuple(args, "si", &message, &color)) {
+            return NULL;
+        }
+
+        int len = MultiByteToWideChar(CP_UTF8, 0, message, -1, NULL, 0);
+        if (len == 0) {
+            PyErr_SetString(PyExc_ValueError, "Failed to convert message to wide string.");
+            return NULL;
+        }
+
+        wchar_t *wMessage = (wchar_t *)malloc(len * sizeof(wchar_t));
+        if (!wMessage) {
+            PyErr_NoMemory();
+            return NULL;
+        }
+
+        MultiByteToWideChar(CP_UTF8, 0, message, -1, wMessage, len);
+
+        if (PrintGameString) {
+            PrintGameString(wMessage, color);
+        } else {
+            write_log("ERR", "PrintGameString is NULL");
+        }
+
+        free(wMessage);
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_print_game_string");
+        Py_RETURN_NONE;
     }
-
-    int len = MultiByteToWideChar(CP_UTF8, 0, message, -1, NULL, 0);
-    if (len == 0) {
-        PyErr_SetString(PyExc_ValueError, "Failed to convert message to wide string.");
-        return NULL;
-    }
-
-    wchar_t *wMessage = (wchar_t *)malloc(len * sizeof(wchar_t));
-    if (!wMessage) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-
-    MultiByteToWideChar(CP_UTF8, 0, message, -1, wMessage, len);
-
-    if (PrintGameString) {
-        PrintGameString(wMessage, color);
-    } else {
-        write_log("ERR", "PrintGameString is NULL");
-    }
-
-    free(wMessage);
-    Py_RETURN_NONE;
 }
 
 static PyMemberDef PyControl_members[] = {
@@ -558,59 +610,74 @@ static PyMemberDef PyControl_members[] = {
 };
 
 static PyObject *py_mouse_click(PyObject *self, PyObject *args) {
-    int x, y, button, down;
-    if (!PyArg_ParseTuple(args, "iiii", &x, &y, &button, &down)) {
-        write_log("WRN", "could not parse mouse_click arguments");
-        return NULL;
-    }
+    __try {
+        int x, y, button, down;
+        if (!PyArg_ParseTuple(args, "iiii", &x, &y, &button, &down)) {
+            write_log("WRN", "could not parse mouse_click arguments");
+            return NULL;
+        }
 
-    uint32_t msg;
-    if (button == 0) {
-        msg = down ? WM_LBUTTONDOWN : WM_LBUTTONUP;
-    } else if (button == 1) {
-        msg = down ? WM_RBUTTONDOWN : WM_RBUTTONUP;
-    } else {
-        write_log("WRN", "button must be 0 (left) or 1 (right)");
-        PyErr_SetString(PyExc_ValueError, "button must be 0 (left) or 1 (right)");
-        return NULL;
-    }
+        uint32_t msg;
+        if (button == 0) {
+            msg = down ? WM_LBUTTONDOWN : WM_LBUTTONUP;
+        } else if (button == 1) {
+            msg = down ? WM_RBUTTONDOWN : WM_RBUTTONUP;
+        } else {
+            write_log("WRN", "button must be 0 (left) or 1 (right)");
+            PyErr_SetString(PyExc_ValueError, "button must be 0 (left) or 1 (right)");
+            return NULL;
+        }
 
-    send_mouse_click(x, y, msg);
-    Py_RETURN_NONE;
+        send_mouse_click(x, y, msg);
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_mouse_click");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyObject *PyControl_get_text(PyControl *self, void *closure) {
-    struct Control *c = (struct Control *)self->ptr;
-    if (!c) Py_RETURN_NONE;
+    __try {
+        struct Control *c = (struct Control *)self->ptr;
+        if (!c) Py_RETURN_NONE;
 
-    if (c->dwType == CONTROL_TEXTBOX) {
-        if (c->pFirstText && c->pFirstText->pNext && c->pFirstText->pNext->wText[0])
-            return PyUnicode_FromWideChar(c->pFirstText->pNext->wText[0], -1);
-    } else {
-        if (c->wText2)
-            return PyUnicode_FromWideChar(c->wText2, -1);
+        if (c->dwType == CONTROL_TEXTBOX) {
+            if (c->pFirstText && c->pFirstText->pNext && c->pFirstText->pNext->wText[0])
+                return PyUnicode_FromWideChar(c->pFirstText->pNext->wText[0], -1);
+        } else {
+            if (c->wText2)
+                return PyUnicode_FromWideChar(c->wText2, -1);
+        }
+
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in PyControl_get_text");
+        Py_RETURN_NONE;
     }
-
-    Py_RETURN_NONE;
 }
 
 static PyObject *PyControl_get_text_list(PyControl *self, void *closure) {
-    struct Control *c = (struct Control *)self->ptr;
-    if (!c || !c->pFirstText) {
-        return PyList_New(0);
-    }
-
-    PyObject *list = PyList_New(0);
-    struct ControlText *cur = c->pFirstText;
-    while (cur) {
-        if (cur->wText[0]) {
-            PyObject *str = PyUnicode_FromWideChar(cur->wText[0], -1);
-            if (str) PyList_Append(list, str);
-            Py_XDECREF(str);  // if Append fails, this will avoid leak
+    __try {
+        struct Control *c = (struct Control *)self->ptr;
+        if (!c || !c->pFirstText) {
+            return PyList_New(0);
         }
-        cur = cur->pNext;
+
+        PyObject *list = PyList_New(0);
+        struct ControlText *cur = c->pFirstText;
+        while (cur) {
+            if (cur->wText[0]) {
+                PyObject *str = PyUnicode_FromWideChar(cur->wText[0], -1);
+                if (str) PyList_Append(list, str);
+                Py_XDECREF(str);  // if Append fails, this will avoid leak
+            }
+            cur = cur->pNext;
+        }
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in PyControl_get_text_list");
+        Py_RETURN_NONE;
     }
-    return list;
 }
 
 static PyGetSetDef PyControl_getset[] = {
@@ -651,103 +718,112 @@ static PyObject *build_control(struct Control *c) {
 }
 
 static PyObject *py_get_all_controls(PyObject *self, PyObject *args) {
-    PyObject *list = PyList_New(0);
-    struct Control *cur = *first_control;
-    int count = 0;
-    int max_controls = 500;
+    __try {
+        PyObject *list = PyList_New(0);
+        struct Control *cur = *first_control;
+        int count = 0;
+        int max_controls = 500;
 
-    // write_log("DBG", "Starting get_all_controls loop, first_control=%p", first_control);
+        while (cur && count < max_controls) {
+            PyObject *py_control = build_control(cur);
+            if (!py_control) {
+                write_log("ERR", "build_control returned NULL at index %d (control ptr: %p)", count, cur);
+                break;
+            }
 
-    while (cur && count < max_controls) {
-        // write_log("DBG", "Loop %d: current control ptr = %p", count, cur);
+            if (PyList_Append(list, py_control) != 0) {
+                write_log("ERR", "PyList_Append failed at index %d", count);
+            }
 
-        PyObject *py_control = build_control(cur);
-        if (!py_control) {
-            write_log("ERR", "build_control returned NULL at index %d (control ptr: %p)", count, cur);
-            break;
+            cur = cur->pNext;
+            count++;
         }
 
-        if (PyList_Append(list, py_control) != 0) {
-            write_log("ERR", "PyList_Append failed at index %d", count);
+        if (count >= max_controls) {
+            write_log("WRN", "get_all_controls loop hit max limit (%d)", max_controls);
         }
-
-        cur = cur->pNext;
-        count++;
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_player_level");
+        Py_RETURN_NONE;
     }
-
-    if (count >= max_controls) {
-        write_log("WRN", "get_all_controls loop hit max limit (%d)", max_controls);
-    }
-
-    // write_log("DBG", "Finished get_all_controls with %d controls", count);
-    return list;
 }
 
 static PyObject *py_set_control_text(PyObject *self, PyObject *args) {
-    PyObject *py_control;
-    const char *text;
+    __try {
+        PyObject *py_control;
+        const char *text;
 
-    if (!PyArg_ParseTuple(args, "Os", &py_control, &text)) {
-        return NULL;
-    }
+        if (!PyArg_ParseTuple(args, "Os", &py_control, &text)) {
+            return NULL;
+        }
 
-    if (!PyObject_TypeCheck(py_control, &PyControlType)) {
-        PyErr_SetString(PyExc_TypeError, "First argument must be a game.Control");
-        return NULL;
-    }
+        if (!PyObject_TypeCheck(py_control, &PyControlType)) {
+            PyErr_SetString(PyExc_TypeError, "First argument must be a game.Control");
+            return NULL;
+        }
 
-    PyControl *ctrl = (PyControl *)py_control;
-    struct Control *native = (struct Control *)ctrl->ptr;
+        PyControl *ctrl = (PyControl *)py_control;
+        struct Control *native = (struct Control *)ctrl->ptr;
 
-    // if (ClientState() != ClientStateMenu || !native || !text) {
-    if (!native || !text) {
+        // if (ClientState() != ClientStateMenu || !native || !text) {
+        if (!native || !text) {
+            Py_RETURN_NONE;
+        }
+
+        int len = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
+        if (len <= 0) {
+            PyErr_SetString(PyExc_ValueError, "Failed to convert text to wide string.");
+            return NULL;
+        }
+
+        wchar_t *wide_text = (wchar_t *)malloc(len * sizeof(wchar_t));
+        if (!wide_text) {
+            PyErr_NoMemory();
+            return NULL;
+        }
+
+        MultiByteToWideChar(CP_UTF8, 0, text, -1, wide_text, len);
+        SetControlText(native, wide_text);
+        free(wide_text);
+
+        Py_RETURN_NONE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_player_level");
         Py_RETURN_NONE;
     }
-
-    int len = MultiByteToWideChar(CP_UTF8, 0, text, -1, NULL, 0);
-    if (len <= 0) {
-        PyErr_SetString(PyExc_ValueError, "Failed to convert text to wide string.");
-        return NULL;
-    }
-
-    wchar_t *wide_text = (wchar_t *)malloc(len * sizeof(wchar_t));
-    if (!wide_text) {
-        PyErr_NoMemory();
-        return NULL;
-    }
-
-    MultiByteToWideChar(CP_UTF8, 0, text, -1, wide_text, len);
-    SetControlText(native, wide_text);
-    free(wide_text);
-
-    Py_RETURN_NONE;
 }
 
 static PyObject *py_get_character_controls(PyObject *self, PyObject *args) {
-    PyControl *py_start;
-    if (!PyArg_ParseTuple(args, "O!", &PyControlType, &py_start)) {
-        PyErr_SetString(PyExc_TypeError, "Expected a Control");
-        return NULL;
-    }
-
-    struct Control *pControl = (struct Control *)py_start->ptr;
-    PyObject *list = PyList_New(0);
-
-    while (pControl != NULL) {
-        if (pControl->dwType == CONTROL_TEXTBOX &&
-            pControl->pFirstText != NULL &&
-            pControl->pFirstText->pNext != NULL)
-        {
-            PyObject *wrapped = build_control(pControl);
-            if (wrapped)
-                PyList_Append(list, wrapped);
-            Py_XDECREF(wrapped);
+    __try {
+        PyControl *py_start;
+        if (!PyArg_ParseTuple(args, "O!", &PyControlType, &py_start)) {
+            PyErr_SetString(PyExc_TypeError, "Expected a Control");
+            return NULL;
         }
 
-        pControl = pControl->pNext;
-    }
+        struct Control *pControl = (struct Control *)py_start->ptr;
+        PyObject *list = PyList_New(0);
 
-    return list;
+        while (pControl != NULL) {
+            if (pControl->dwType == CONTROL_TEXTBOX &&
+                pControl->pFirstText != NULL &&
+                pControl->pFirstText->pNext != NULL)
+            {
+                PyObject *wrapped = build_control(pControl);
+                if (wrapped)
+                    PyList_Append(list, wrapped);
+                Py_XDECREF(wrapped);
+            }
+
+            pControl = pControl->pNext;
+        }
+
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_character_controls");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyObject *PyAct_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
@@ -796,18 +872,23 @@ static PyMemberDef PyActMisc_members[] = {
 };
 
 static PyObject *py_get_player_act(PyObject *self, PyObject *args) {
-    PyObject *py_unit;
-    if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
-        PyErr_SetString(PyExc_TypeError, "Expected a Unit");
-        return NULL;
-    }
+    __try {
+        PyObject *py_unit;
+        if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
+            PyErr_SetString(PyExc_TypeError, "Expected a Unit");
+            return NULL;
+        }
 
-    PyUnit *unit = (PyUnit *)py_unit;
-    if (!unit->pAct) {
+        PyUnit *unit = (PyUnit *)py_unit;
+        if (!unit->pAct) {
+            Py_RETURN_NONE;
+        }
+
+        return build_act(unit->pAct);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_player_act");
         Py_RETURN_NONE;
     }
-
-    return build_act(unit->pAct);
 }
 
 static PyTypeObject PyActMiscType = {
@@ -873,47 +954,57 @@ static PyObject *build_level_object(struct Level *level) {
 }
 
 static PyObject *py_get_player_level(PyObject *self, PyObject *args) {
-    PyUnit *py_unit;
+    __try {
+        PyUnit *py_unit;
 
-    if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
-        PyErr_SetString(PyExc_TypeError, "Expected a Unit");
-        return NULL;
-    }
-
-    if (!py_unit->unit || !py_unit->unit->pPath ||
-        !py_unit->unit->pPath->pRoom1 ||
-        !py_unit->unit->pPath->pRoom1->pRoom2 ||
-        !py_unit->unit->pPath->pRoom1->pRoom2->pLevel) {
-        Py_RETURN_NONE;
+        if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
+            PyErr_SetString(PyExc_TypeError, "Expected a Unit");
+            return NULL;
         }
 
-    return build_level_object(py_unit->unit->pPath->pRoom1->pRoom2->pLevel);
+        if (!py_unit->unit || !py_unit->unit->pPath ||
+            !py_unit->unit->pPath->pRoom1 ||
+            !py_unit->unit->pPath->pRoom1->pRoom2 ||
+            !py_unit->unit->pPath->pRoom1->pRoom2->pLevel) {
+            Py_RETURN_NONE;
+            }
+
+        return build_level_object(py_unit->unit->pPath->pRoom1->pRoom2->pLevel);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_player_level");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyObject *py_get_act_levels(PyObject *self, PyObject *args) {
-    PyAct *py_act;
+    __try {
+        PyAct *py_act;
 
-    if (!PyArg_ParseTuple(args, "O!", &PyActType, &py_act)) {
-        PyErr_SetString(PyExc_TypeError, "Expected an Act");
-        return NULL;
-    }
+        if (!PyArg_ParseTuple(args, "O!", &PyActType, &py_act)) {
+            PyErr_SetString(PyExc_TypeError, "Expected an Act");
+            return NULL;
+        }
 
-    if (!py_act->act || !py_act->pMisc || !py_act->pMisc->pLevelFirst) {
+        if (!py_act->act || !py_act->pMisc || !py_act->pMisc->pLevelFirst) {
+            Py_RETURN_NONE;
+        }
+
+        PyObject *list = PyList_New(0);
+        struct Level *level = py_act->pMisc->pLevelFirst;
+
+        while (level) {
+            PyObject *py_level = build_level_object(level);
+            if (py_level)
+                PyList_Append(list, py_level);
+            Py_XDECREF(py_level);
+            level = level->pNextLevel;
+        }
+
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_act_levels");
         Py_RETURN_NONE;
     }
-
-    PyObject *list = PyList_New(0);
-    struct Level *level = py_act->pMisc->pLevelFirst;
-
-    while (level) {
-        PyObject *py_level = build_level_object(level);
-        if (py_level)
-            PyList_Append(list, py_level);
-        Py_XDECREF(py_level);
-        level = level->pNextLevel;
-    }
-
-    return list;
 }
 
 static PyObject *PyMapRoom_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
@@ -955,134 +1046,150 @@ static PyObject *build_map_room_from_room2(struct Room2 *room2) {
 }
 
 static PyObject *py_get_player_map_room(PyObject *self, PyObject *args) {
-    PyUnit *py_unit;
-    if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
-        PyErr_SetString(PyExc_TypeError, "Expected a Unit");
-        return NULL;
-    }
+    __try {
+        PyUnit *py_unit;
+        if (!PyArg_ParseTuple(args, "O!", &PyUnitType, &py_unit)) {
+            PyErr_SetString(PyExc_TypeError, "Expected a Unit");
+            return NULL;
+        }
 
-    if (!py_unit->unit || !py_unit->unit->pPath || !py_unit->unit->pPath->pRoom1 || !py_unit->unit->pPath->pRoom1->pRoom2) {
+        if (!py_unit->unit || !py_unit->unit->pPath || !py_unit->unit->pPath->pRoom1 || !py_unit->unit->pPath->pRoom1->pRoom2) {
+            Py_RETURN_NONE;
+        }
+
+        return build_map_room_from_room2(py_unit->unit->pPath->pRoom1->pRoom2);
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_player_map_room");
         Py_RETURN_NONE;
     }
-
-    return build_map_room_from_room2(py_unit->unit->pPath->pRoom1->pRoom2);
 }
 
 static PyObject *py_get_level_map_rooms(PyObject *self, PyObject *args) {
-    PyLevel *py_level;
+    __try {
+        PyLevel *py_level;
 
-    if (!PyArg_ParseTuple(args, "O!", &PyLevelType, &py_level)) {
-        PyErr_SetString(PyExc_TypeError, "Expected a game.Level");
-        return NULL;
-    }
-
-    struct Level *level = py_level->level;
-    if (!level || !level->pRoom2First) {
-        Py_RETURN_NONE;
-    }
-
-    // if (level->pMisc && level->pRoom2First && !level->pRoom2First->pRoom1) {
-    //     write_log("INF", "InitLevel");
-    //     InitLevel(level);
-    // }
-
-    PyObject *list = PyList_New(0);
-    if (!list) return NULL;
-
-    for (struct Room2 *room2 = level->pRoom2First; room2; room2 = room2->pRoom2Next) {
-        bool added = false;
-
-        if (!room2->pRoom1 && (room2->dwRoomFlags & 1)) {
-            AddRoomData(level->pMisc->pAct, level->dwLevelNo, room2->dwPosX, room2->dwPosY, room2);
-            added = true;
+        if (!PyArg_ParseTuple(args, "O!", &PyLevelType, &py_level)) {
+            PyErr_SetString(PyExc_TypeError, "Expected a game.Level");
+            return NULL;
         }
 
-        if (room2->pRoom1) {
-            PyObject *room = build_map_room_from_room2(room2);
-            if (room) {
-                PyList_Append(list, room);
-                Py_DECREF(room);
+        struct Level *level = py_level->level;
+        if (!level || !level->pRoom2First) {
+            Py_RETURN_NONE;
+        }
+
+        // if (level->pMisc && level->pRoom2First && !level->pRoom2First->pRoom1) {
+        //     write_log("INF", "InitLevel");
+        //     InitLevel(level);
+        // }
+
+        PyObject *list = PyList_New(0);
+        if (!list) return NULL;
+
+        for (struct Room2 *room2 = level->pRoom2First; room2; room2 = room2->pRoom2Next) {
+            bool added = false;
+
+            if (!room2->pRoom1 && (room2->dwRoomFlags & 1)) {
+                AddRoomData(level->pMisc->pAct, level->dwLevelNo, room2->dwPosX, room2->dwPosY, room2);
+                added = true;
             }
-        }
 
-        if (added) {
-            // RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room2->dwPosX, room2->dwPosY, room2);
-        }
-    }
-
-    return list;
-}
-
-static PyObject *py_get_level_exits(PyObject *self, PyObject *args) {
-    PyLevel *py_level;
-
-    if (!PyArg_ParseTuple(args, "O!", &PyLevelType, &py_level)) {
-        PyErr_SetString(PyExc_TypeError, "Expected a game.Level");
-        return NULL;
-    }
-
-    struct Level *level = py_level->level;
-    if (!level || !level->pRoom2First) {
-        Py_RETURN_NONE;
-    }
-
-    PyObject *result_list = PyList_New(0);
-    if (!result_list) return NULL;
-
-    for (struct Room2 *room = level->pRoom2First; room; room = room->pRoom2Next) {
-        bool addedRoomData = false;
-
-        if (!room->pRoom1) {
-            AddRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room);
-            addedRoomData = true;
-        }
-
-        if (!room->pRoom2Near || room->dwRoomsNear > 64) continue;
-
-        for (int i = 0; i < room->dwRoomsNear; i++) {
-            struct Room2 *neighbor = room->pRoom2Near[i];
-
-            if (!neighbor || !neighbor->pLevel) continue;
-            if (neighbor->pLevel->dwLevelNo == room->pLevel->dwLevelNo) continue;
-
-            // De-duplication: skip if already added
-            bool already_exists = false;
-            Py_ssize_t len = PyList_Size(result_list);
-            for (Py_ssize_t j = 0; j < len; j++) {
-                PyObject *entry = PyList_GetItem(result_list, j);
-                if (!entry) continue;
-
-                PyObject *from_val = PyDict_GetItemString(entry, "from");
-                PyObject *to_val = PyDict_GetItemString(entry, "to");
-
-                if (from_val && to_val &&
-                    PyLong_AsUnsignedLong(from_val) == room->pLevel->dwLevelNo &&
-                    PyLong_AsUnsignedLong(to_val) == neighbor->pLevel->dwLevelNo) {
-                    already_exists = true;
-                    break;
+            if (room2->pRoom1) {
+                PyObject *room = build_map_room_from_room2(room2);
+                if (room) {
+                    PyList_Append(list, room);
+                    Py_DECREF(room);
                 }
             }
 
-            if (already_exists) continue;
-
-            PyObject *exit_dict = PyDict_New();
-            if (!exit_dict) continue;
-
-            PyDict_SetItemString(exit_dict, "from", PyLong_FromUnsignedLong(room->pLevel->dwLevelNo));
-            PyDict_SetItemString(exit_dict, "to", PyLong_FromUnsignedLong(neighbor->pLevel->dwLevelNo));
-            PyDict_SetItemString(exit_dict, "x", PyLong_FromUnsignedLong(room->dwPosX * 5 + room->dwSizeX * 5 / 2));
-            PyDict_SetItemString(exit_dict, "y", PyLong_FromUnsignedLong(room->dwPosY * 5 + room->dwSizeY * 5 / 2));
-
-            PyList_Append(result_list, exit_dict);
-            Py_DECREF(exit_dict);
+            if (added) {
+                // RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room2->dwPosX, room2->dwPosY, room2);
+            }
         }
 
-        if (addedRoomData) {
-            // RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room);
-        }
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_level_map_rooms");
+        Py_RETURN_NONE;
     }
+}
 
-    return result_list;
+static PyObject *py_get_level_exits(PyObject *self, PyObject *args) {
+    __try {
+        PyLevel *py_level;
+
+        if (!PyArg_ParseTuple(args, "O!", &PyLevelType, &py_level)) {
+            PyErr_SetString(PyExc_TypeError, "Expected a game.Level");
+            return NULL;
+        }
+
+        struct Level *level = py_level->level;
+        if (!level || !level->pRoom2First) {
+            Py_RETURN_NONE;
+        }
+
+        PyObject *result_list = PyList_New(0);
+        if (!result_list) return NULL;
+
+        for (struct Room2 *room = level->pRoom2First; room; room = room->pRoom2Next) {
+            bool addedRoomData = false;
+
+            if (!room->pRoom1) {
+                AddRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room);
+                addedRoomData = true;
+            }
+
+            if (!room->pRoom2Near || room->dwRoomsNear > 64) continue;
+
+            for (int i = 0; i < room->dwRoomsNear; i++) {
+                struct Room2 *neighbor = room->pRoom2Near[i];
+
+                if (!neighbor || !neighbor->pLevel) continue;
+                if (neighbor->pLevel->dwLevelNo == room->pLevel->dwLevelNo) continue;
+
+                // De-duplication: skip if already added
+                bool already_exists = false;
+                Py_ssize_t len = PyList_Size(result_list);
+                for (Py_ssize_t j = 0; j < len; j++) {
+                    PyObject *entry = PyList_GetItem(result_list, j);
+                    if (!entry) continue;
+
+                    PyObject *from_val = PyDict_GetItemString(entry, "from");
+                    PyObject *to_val = PyDict_GetItemString(entry, "to");
+
+                    if (from_val && to_val &&
+                        PyLong_AsUnsignedLong(from_val) == room->pLevel->dwLevelNo &&
+                        PyLong_AsUnsignedLong(to_val) == neighbor->pLevel->dwLevelNo) {
+                        already_exists = true;
+                        break;
+                    }
+                }
+
+                if (already_exists) continue;
+
+                PyObject *exit_dict = PyDict_New();
+                if (!exit_dict) continue;
+
+                PyDict_SetItemString(exit_dict, "from", PyLong_FromUnsignedLong(room->pLevel->dwLevelNo));
+                PyDict_SetItemString(exit_dict, "to", PyLong_FromUnsignedLong(neighbor->pLevel->dwLevelNo));
+                PyDict_SetItemString(exit_dict, "x", PyLong_FromUnsignedLong(room->dwPosX * 5 + room->dwSizeX * 5 / 2));
+                PyDict_SetItemString(exit_dict, "y", PyLong_FromUnsignedLong(room->dwPosY * 5 + room->dwSizeY * 5 / 2));
+
+                PyList_Append(result_list, exit_dict);
+                Py_DECREF(exit_dict);
+            }
+
+            if (addedRoomData) {
+                // RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room);
+            }
+        }
+
+        return result_list;
+
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_level_exits");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyObject *build_object_unit(struct UnitAny *unit) {
@@ -1170,62 +1277,67 @@ static PyObject *py_get_nearby_units(PyObject *self, PyObject *args) {
 }
 
 PyObject *py_get_unit_name(PyObject *self, PyObject *args) {
-    PyObject *py_unit;
-    if (!PyArg_ParseTuple(args, "O", &py_unit)) {
-        Py_RETURN_NONE;
-    }
+    __try {
+        PyObject *py_unit;
+        if (!PyArg_ParseTuple(args, "O", &py_unit)) {
+            Py_RETURN_NONE;
+        }
 
-    if (!PyObject_TypeCheck(py_unit, &PyUnitType)) {
-        Py_RETURN_NONE;
-    }
+        if (!PyObject_TypeCheck(py_unit, &PyUnitType)) {
+            Py_RETURN_NONE;
+        }
 
-    PyUnit *unit = (PyUnit *)py_unit;
-    if (!unit->unit) {
-        Py_RETURN_NONE;
-    }
+        PyUnit *unit = (PyUnit *)py_unit;
+        if (!unit->unit) {
+            Py_RETURN_NONE;
+        }
 
-    char szTmp[256] = {0};
+        char szTmp[256] = {0};
 
-    switch (unit->unit->dwType) {
-        case UNIT_MONSTER: {
-            wchar_t *wName = get_unit_name((uintptr_t)unit->unit);
-            if (wName) {
-                WideCharToMultiByte(CP_ACP, 0, wName, -1, szTmp, sizeof(szTmp), 0, 0);
+        switch (unit->unit->dwType) {
+            case UNIT_MONSTER: {
+                wchar_t *wName = get_unit_name((uintptr_t)unit->unit);
+                if (wName) {
+                    WideCharToMultiByte(CP_ACP, 0, wName, -1, szTmp, sizeof(szTmp), 0, 0);
+                    return PyUnicode_FromString(szTmp);
+                }
+                break;
+            }
+            case UNIT_PLAYER: {
+                if (unit->unit->pPlayerData) {
+                    strncpy(szTmp, unit->unit->pPlayerData->szName, sizeof(szTmp) - 1);
+                    return PyUnicode_FromString(szTmp);
+                }
+                break;
+            }
+            case UNIT_ITEM: {
+                wchar_t wBuffer[256] = {0};
+                GetItemName(unit->unit, wBuffer, sizeof(wBuffer));
+                char *szBuffer = UnicodeToAnsi(wBuffer);
+                if (!szBuffer) break;
+                char *newline = strchr(szBuffer, '\n');
+                if (newline) *newline = 0x00;
+                strncpy(szTmp, szBuffer, sizeof(szTmp) - 1);
+                free(szBuffer);
                 return PyUnicode_FromString(szTmp);
             }
-            break;
-        }
-        case UNIT_PLAYER: {
-            if (unit->unit->pPlayerData) {
-                strncpy(szTmp, unit->unit->pPlayerData->szName, sizeof(szTmp) - 1);
-                return PyUnicode_FromString(szTmp);
+            case UNIT_OBJECT:
+            case UNIT_TILE: {
+                if (unit->unit->pObjectData && unit->unit->pObjectData->pTxt) {
+                    strncpy(szTmp, unit->unit->pObjectData->pTxt->szName, sizeof(szTmp) - 1);
+                    return PyUnicode_FromString(szTmp);
+                }
+                break;
             }
-            break;
+            default:
+                break;
         }
-        case UNIT_ITEM: {
-            wchar_t wBuffer[256] = {0};
-            GetItemName(unit->unit, wBuffer, sizeof(wBuffer));
-            char *szBuffer = UnicodeToAnsi(wBuffer);
-            if (!szBuffer) break;
-            char *newline = strchr(szBuffer, '\n');
-            if (newline) *newline = 0x00;
-            strncpy(szTmp, szBuffer, sizeof(szTmp) - 1);
-            free(szBuffer);
-            return PyUnicode_FromString(szTmp);
-        }
-        case UNIT_OBJECT:
-        case UNIT_TILE: {
-            if (unit->unit->pObjectData && unit->unit->pObjectData->pTxt) {
-                strncpy(szTmp, unit->unit->pObjectData->pTxt->szName, sizeof(szTmp) - 1);
-                return PyUnicode_FromString(szTmp);
-            }
-            break;
-        }
-        default:
-            break;
-    }
 
-    return PyUnicode_FromString("Unknown");
+        return PyUnicode_FromString("Unknown");
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_unit_name");
+        Py_RETURN_NONE;
+    }
 }
 
 static PyMemberDef PyPreset_members[] = {
@@ -1262,25 +1374,25 @@ static PyObject *build_preset(struct PresetUnit *preset, uint32_t roomx, uint32_
 
 static PyObject *py_get_presets_for_room(PyObject *self, PyObject *args) {
     __try {
-    PyMapRoom *py_room;
-    if (!PyArg_ParseTuple(args, "O!", &PyMapRoomType, &py_room))
-        return NULL;
+        PyMapRoom *py_room;
+        if (!PyArg_ParseTuple(args, "O!", &PyMapRoomType, &py_room))
+            return NULL;
 
-    struct Room2 *room = py_room->room_data;
-    if (!room || !room->pPreset)
-        Py_RETURN_NONE;
+        struct Room2 *room = py_room->room_data;
+        if (!room || !room->pPreset)
+            Py_RETURN_NONE;
 
-    PyObject *list = PyList_New(0);
-    if (!list) return NULL;
+        PyObject *list = PyList_New(0);
+        if (!list) return NULL;
 
-    for (struct PresetUnit *preset = room->pPreset; preset; preset = preset->pPresetNext) {
-        PyObject *obj = build_preset(preset, room->dwPosX, room->dwPosY);
-        if (!obj) continue;
-        PyList_Append(list, obj);
-        Py_DECREF(obj);
-    }
+        for (struct PresetUnit *preset = room->pPreset; preset; preset = preset->pPresetNext) {
+            PyObject *obj = build_preset(preset, room->dwPosX, room->dwPosY);
+            if (!obj) continue;
+            PyList_Append(list, obj);
+            Py_DECREF(obj);
+        }
 
-    return list;
+        return list;
     } __except(EXCEPTION_EXECUTE_HANDLER) {
         write_log("ERR", "crash in py_get_nearby_units");
         Py_RETURN_NONE;
@@ -1349,6 +1461,11 @@ static PyObject *py_get_room_tiles(PyObject *self, PyObject *args) {
                 uint32_t level_x = coll->dwPosGameX + x;
                 uint32_t level_y = coll->dwPosGameY + y;
 
+                struct UnitAny *player = GetPlayerUnit();
+                if (!(abs((int)level_x - player->pPath->xPos) > 5 || abs((int)level_y - player->pPath->yPos) > 5)) {
+                    write_log("DBG", "tile (%u,%u) flag=0x%04x", level_x, level_y, flag);
+                }
+
                 PyObject *tile = build_tile(level_x, level_y, flag);
                 if (!tile || PyList_Append(list, tile) != 0) {
                     Py_XDECREF(tile);
@@ -1410,6 +1527,145 @@ static PyObject *py_get_map_room_neighbors(PyObject *self, PyObject *args) {
     }
 }
 
+static PyObject *py_world_to_automap(PyObject *self, PyObject *args) {
+    uint32_t x, y;
+    if (!PyArg_ParseTuple(args, "II", &x, &y)) {
+        return NULL;
+    }
+
+    POINT pt = {0};
+    world_to_automap(&pt, x, y);
+
+    return Py_BuildValue("(ii)", pt.x, pt.y);
+}
+
+void __stdcall map_to_abs_screen(POINT *pos) {
+    int x = pos->x;
+    int y = pos->y;
+
+    int screenX = 16 * (x - y);
+    int screenY = 8 * (x + y);
+
+    pos->x = screenX;
+    pos->y = screenY;
+}
+
+static PyObject *py_click_map(PyObject *self, PyObject *args) {
+    __try {
+        int click_type;
+        int x, y;
+        int shift = 0;
+        PyObject *py_unit = NULL;
+
+        if (!PyArg_ParseTuple(args, "iii|O", &click_type, &x, &y, &py_unit)) {
+            return NULL;
+        }
+
+        struct UnitAny *unit = NULL;
+        if (py_unit && PyObject_TypeCheck(py_unit, &PyUnitType)) {
+            unit = ((PyUnit *)py_unit)->unit;
+        }
+
+        POINT Click = { .x = x , .y = y };
+
+        if (unit) {
+            write_log("DBG", "GetUnitX %i", x);
+            Click.x = (long)GetUnitX(unit);
+            write_log("DBG", "GetUnitY %i", y);
+            Click.y = (long)GetUnitY(unit);
+        }
+
+        write_log("DBG", "MapToAbsScreen %i %i", x, y);
+        map_to_abs_screen(&Click);
+        // world_to_automap(&Click, x, y);
+        write_log("DBG", "viewport_x %i", (long)*viewport_x);
+        Click.x -= (long)*viewport_x;
+        write_log("DBG", "viewport_y %i", (long)*viewport_y);
+        Click.y -= (long)*viewport_y;
+
+        write_log("DBG", "click_x %i", Click.x);
+        write_log("DBG", "click_y %i", Click.y);
+
+        write_log("DBG", "mouse_x %i", (long)*mouse_x);
+        write_log("DBG", "mouse_y %i", (long)*mouse_y);
+        POINT OldMouse = {
+            .x = (long)*mouse_x,
+            .y = (long)*mouse_y
+        };
+
+        *mouse_x = 0;
+        *mouse_y = 0;
+
+        int flags = shift ? 0x0C : (*always_run ? 0x08 : 0);
+
+        if (unit && unit != GetPlayerUnit()) {
+            write_log("DBG", "ClickMap1");
+            ClickMap(click_type, Click.x, Click.y, flags);
+            write_log("DBG", "set_selected_unit");
+            set_selected_unit(NULL);
+        } else {
+            write_log("DBG", "ClickMap2");
+            ClickMap(click_type, Click.x, Click.y, flags);
+        }
+
+        write_log("DBG", "mouse_x");
+        *mouse_x = OldMouse.x;
+        write_log("DBG", "mouse_y");
+        *mouse_y = OldMouse.y;
+        write_log("DBG", "done");
+
+        Py_RETURN_TRUE;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_click_map");
+        Py_RETURN_NONE;
+    }
+}
+
+static PyObject *py_get_blocked_automap_tiles(PyObject *self, PyObject *args) {
+    __try {
+        PyObject *list = PyList_New(0);
+        if (!list)
+            return NULL;
+
+        struct AutomapLayer *layer = *automap_layer;
+        if (!layer)
+            Py_RETURN_NONE;
+
+        struct UnitAny *player = GetPlayerUnit();
+
+        while (layer) {
+            struct AutomapCell *cells[] = {
+                layer->pWalls,
+                layer->pObjects,
+                layer->pExtras,
+                layer->pFloors
+            };
+
+            for (int i = 0; i < 4; i++) {
+                struct AutomapCell *cell = cells[i];
+                while (cell) {
+                    int sx = cell->xPixel / 32;
+                    int sy = cell->yPixel / 16;
+                    int tile_x = (sx + sy) / 2;
+                    int tile_y = (sy - sx) / 2;
+
+                    PyObject *tuple = Py_BuildValue("(ii)", tile_x, tile_y);
+                    PyList_Append(list, tuple);
+                    Py_DECREF(tuple);
+                    cell = cell->pMore;
+                }
+            }
+
+            layer = layer->pNextLayer;
+        }
+
+        return list;
+    } __except(EXCEPTION_EXECUTE_HANDLER) {
+        write_log("ERR", "crash in py_get_blocked_automap_tiles");
+        Py_RETURN_NONE;
+    }
+}
+
 static PyMethodDef GameMethods[] = {
     {"get_game_info", py_get_game_info, METH_NOARGS, NULL},
     {"is_game_ready", py_is_game_ready, METH_NOARGS, NULL},
@@ -1439,9 +1695,12 @@ static PyMethodDef GameMethods[] = {
     {"get_level_exits", py_get_level_exits, METH_VARARGS, NULL},
     {"get_nearby_units", py_get_nearby_units, METH_NOARGS, NULL},
     {"get_unit_name", py_get_unit_name, METH_VARARGS, NULL},
-    {"get_presets_for_room", py_get_presets_for_room, METH_VARARGS, ""},
-    {"get_room_tiles", py_get_room_tiles, METH_VARARGS, ""},
-    {"get_map_room_neighbors", py_get_map_room_neighbors, METH_VARARGS, ""},
+    {"get_presets_for_room", py_get_presets_for_room, METH_VARARGS, NULL},
+    {"get_room_tiles", py_get_room_tiles, METH_VARARGS, NULL},
+    {"get_map_room_neighbors", py_get_map_room_neighbors, METH_VARARGS, NULL},
+    {"world_to_automap", py_world_to_automap, METH_VARARGS, NULL},
+    {"click_map", py_click_map, METH_VARARGS, NULL},
+    { "get_blocked_automap_tiles", py_get_blocked_automap_tiles, METH_NOARGS, NULL},
     {NULL, NULL, 0, NULL}
 };
 

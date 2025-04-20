@@ -18,5 +18,6 @@ struct Element {
 };
 
 void draw_automap(struct Element *element);
+void world_to_automap(POINT* ptPos, uint32_t x, uint32_t y);
 
 #endif

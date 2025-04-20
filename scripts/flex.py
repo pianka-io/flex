@@ -495,8 +495,7 @@ class MapTile:
                not bool(self._internal.flags & 0x0002) and \
                not bool(self._internal.flags & 0x0008) and \
                not bool(self._internal.flags & 0x0400) and \
-               not bool(self._internal.flags & 0x1000) and \
-               not bool(self._internal.flags & 0xffff)
+               not bool(self._internal.flags & 0x1000)
 
 class PresetType(IntEnum):
     MONSTER = 1
@@ -836,6 +835,35 @@ def nearest_walkable_tile(target: Position, tiles: list[MapTile]) -> Optional[Po
         default=None
     )
 
+def simplify_path(path: list[Position]) -> list[Position]:
+    if len(path) < 2:
+        return path
+
+    out = [path[0]]
+    last = path[0]
+    last_dx = last_dy = None
+
+    for i in range(1, len(path)):
+        curr = path[i]
+        dx = curr.x - last.x
+        dy = curr.y - last.y
+        dist = abs(dx) + abs(dy)
+
+        # normalize direction
+        dx = (dx > 0) - (dx < 0)
+        dy = (dy > 0) - (dy < 0)
+
+        if (dx, dy) != (last_dx, last_dy) or dist > 8:
+            out.append(curr)
+            last = curr
+            last_dx = dx
+            last_dy = dy
+
+    if out[-1] != path[-1]:
+        out.append(path[-1])
+
+    return out
+
 def find_room_path(start: Position, end: Position) -> list[Position]:
     if start is None or end is None:
         error("start or end is None")
@@ -845,16 +873,22 @@ def find_room_path(start: Position, end: Position) -> list[Position]:
     tiles = [t for room in player.level_data.rooms for t in room.tiles]
     tile_map = {(t.position.x, t.position.y): t for t in tiles}
 
+    try:
+        import game
+        blocked_positions = set((x, y) for x, y in game.get_blocked_automap_tiles())
+    except Exception:
+        blocked_positions = set()
+
     def nearest_walkable(pos: Position) -> Optional[Position]:
         return min(
-            (t.position for t in tiles if t.walkable),
+            (t.position for t in tiles if t.walkable and (t.position.x, t.position.y) not in blocked_positions),
             key=lambda p: abs(p.x - pos.x) + abs(p.y - pos.y),
             default=None
         )
 
-    if (start.x, start.y) not in tile_map or not tile_map[(start.x, start.y)].walkable:
+    if (start.x, start.y) not in tile_map or not tile_map[(start.x, start.y)].walkable or (start.x, start.y) in blocked_positions:
         start = nearest_walkable(start)
-    if (end.x, end.y) not in tile_map or not tile_map[(end.x, end.y)].walkable:
+    if (end.x, end.y) not in tile_map or not tile_map[(end.x, end.y)].walkable or (end.x, end.y) in blocked_positions:
         end = nearest_walkable(end)
 
     if not start or not end:
@@ -867,12 +901,28 @@ def find_room_path(start: Position, end: Position) -> list[Position]:
             for dy in (-1, 0, 1):
                 if dx == 0 and dy == 0:
                     continue
-                neighbor = Position(pos.x + dx, pos.y + dy)
-                t = tile_map.get((neighbor.x, neighbor.y))
-                if t and t.walkable:
-                    out.append(neighbor)
-        return out
 
+                nx, ny = pos.x + dx, pos.y + dy
+                if (nx, ny) in blocked_positions:
+                    continue
+
+                t = tile_map.get((nx, ny))
+                if not t or not t.walkable:
+                    continue
+
+                if dx != 0 and dy != 0:
+                    t1 = tile_map.get((pos.x + dx, pos.y))
+                    t2 = tile_map.get((pos.x, pos.y + dy))
+                    if (pos.x + dx, pos.y) in blocked_positions or (pos.x, pos.y + dy) in blocked_positions:
+                        debug("skipping blocked position")
+
+                    if not (t1 and t1.walkable and (pos.x + dx, pos.y) not in blocked_positions):
+                        continue
+                    if not (t2 and t2.walkable and (pos.x, pos.y + dy) not in blocked_positions):
+                        continue
+
+                out.append(Position(nx, ny))
+        return out
 
     def heuristic(a: Position, b: Position) -> int:
         return abs(a.x - b.x) + abs(a.y - b.y)
@@ -891,7 +941,7 @@ def find_room_path(start: Position, end: Position) -> list[Position]:
                 current = came_from[current]
                 path.append(current)
             path.reverse()
-            return path
+            return simplify_path(path)
 
         for next_pos in neighbors(current):
             new_cost = cost[current] + 1
@@ -1305,6 +1355,28 @@ class Act(IntEnum):
     IV = 0x03
     V = 0x04
 
+class CharacterState(IntEnum):
+    DEAD_1 = 0
+    STANDING_OUTSIDE_TOWN = 1
+    WALKING_OUTSIDE_TOWN = 2
+    RUNNING = 3
+    GETTING_HIT = 4
+    STANDING_INSIDE_TOWN = 5
+    WALKING_INSIDE_TOWN = 6
+    ATTACKING_1 = 7
+    ATTACKING_2 = 8
+    BLOCKING = 9
+    CASTING_SPELL = 10
+    THROWING_ITEM = 11
+    KICKING = 12
+    USING_SKILL_1 = 13
+    USING_SKILL_2 = 14
+    USING_SKILL_3 = 15
+    USING_SKILL_4 = 16
+    DEAD_2 = 17
+    SEQUENCE = 18
+    GETTING_KNOCKED_BACK = 19
+
 class Character(Unit):
     @property
     def position(self) -> Position:
@@ -1340,6 +1412,22 @@ class Character(Unit):
     def map_room(self) -> Optional[MapRoom]:
         room = game.get_player_map_room(self._internal)
         return MapRoom(room) if room else None
+
+    @property
+    def state(self) -> CharacterState:
+        return CharacterState(self._internal.dwMode)
+
+    @property
+    def dead(self) -> bool:
+        return self.state in [CharacterState.DEAD_1, CharacterState.DEAD_2]
+
+    @property
+    def walking(self) -> bool:
+        return self.state in [CharacterState.WALKING_INSIDE_TOWN, CharacterState.WALKING_OUTSIDE_TOWN]
+
+    @property
+    def running(self) -> bool:
+        return self.state in [CharacterState.RUNNING]
 
 class MonsterType(IntEnum):
     SKELETON = 0
@@ -3917,6 +4005,10 @@ def write_log(level: str, message: str):
 
 def distance(begin: Position, end: Position):
     return math.sqrt((begin.x - end.x) ** 2 + (begin.y - end.y) ** 2)
+
+def world_to_automap(position: Position) -> Position:
+    x, y = game.world_to_automap(position.x, position.y)
+    return Position(x, y)
 
 class LoopType(StrEnum):
     FLEX = "FLEX"

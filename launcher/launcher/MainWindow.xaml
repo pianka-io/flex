@@ -170,13 +170,19 @@
                        StaysOpen="False"
                        AllowsTransparency="True"
                        PopupAnimation="Fade">
-                    <Border Background="#1a1a1a"
-                            BorderBrush="Black"
-                            BorderThickness="2"
-                            CornerRadius="4"
-                            Padding="0"
+                    <Border Background="#2a2a2a"
+                            BorderBrush="#2a2a2a"
+                            BorderThickness="0"
+                            CornerRadius="0"
+                            Padding="4"
                             SnapsToDevicePixels="True">
                         <StackPanel>
+                            <Button Content="Settings"
+                                    Style="{StaticResource RedButtonStyle}"
+                                    Padding="20,4"
+                                    Click="Settings_Click"
+                                    HorizontalContentAlignment="Left"
+                                    FontSize="16"/>
                             <Button Content="Uninstall Diablo II"
                                     Style="{StaticResource RedButtonStyle}"
                                     Padding="20,4"

@@ -21,6 +21,9 @@ extern POINT *automap_offset;
 extern struct Control **first_control;
 extern struct UnitHashTable *client_side_units;
 extern struct UnitHashTable *server_side_units;
+extern uint32_t *viewport_x;
+extern uint32_t *viewport_y;
+extern boolean *always_run;
 
 /* prototypes */
 typedef void(__stdcall *PrintGameString_t)(wchar_t *wMessage, int nColor);
@@ -61,6 +64,8 @@ typedef HWND(__stdcall *GetHwnd_t)(void);
 typedef void *(__fastcall *SetControlText_t)(struct Control* control, wchar_t* text);
 typedef boolean(__stdcall *GetItemName_t)(struct UnitAny* pItem, wchar_t* wBuffer, uint32_t dwSize);
 typedef wchar_t *(__fastcall *GetUnitName_I_t)(uintptr_t pUnit);
+typedef void(__fastcall *SetSelectedUnit_I_t)(struct UnitAny *pUnit);
+typedef void(__stdcall *ClickMap_t)(uint32_t mouse_flag, uint32_t x, uint32_t y, uint32_t type);
 
 /* functions */
 extern PrintGameString_t PrintGameString;
@@ -101,6 +106,8 @@ extern GetHwnd_t GetHwnd;
 extern SetControlText_t SetControlText;
 extern GetItemName_t GetItemName;
 extern GetUnitName_I_t GetUnitName_I;
+extern SetSelectedUnit_I_t SetSelectedUnit_I;
+extern ClickMap_t ClickMap;
 
 /* tables */
 extern struct UnitAny **PlayerTable;
@@ -122,5 +129,6 @@ void reveal_level(struct Level *level);
 void reveal_room(struct Room2* room);
 void draw_presets(struct Room2 *pRoom2);
 void send_mouse_click(uint32_t x, uint32_t y, uint32_t type);
+void set_selected_unit(struct UnitAny* unit);
 
 #endif

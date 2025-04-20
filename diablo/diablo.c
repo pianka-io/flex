@@ -26,6 +26,9 @@ POINT *automap_offset = NULL;
 struct Control **first_control = NULL;
 struct UnitHashTable *client_side_units = NULL;
 struct UnitHashTable *server_side_units = NULL;
+uint32_t *viewport_x;
+uint32_t *viewport_y;
+boolean *always_run;
 
 PrintGameString_t PrintGameString = NULL;
 GetMouseXOffset_t GetMouseXOffset = NULL;
@@ -65,6 +68,8 @@ GetHwnd_t GetHwnd = NULL;
 SetControlText_t SetControlText = NULL;
 GetItemName_t GetItemName = NULL;
 GetUnitName_I_t GetUnitName_I = NULL;
+SetSelectedUnit_I_t SetSelectedUnit_I = NULL;
+ClickMap_t ClickMap = NULL;
 
 struct UnitAny **PlayerTable = NULL;
 struct UnitAny **MonsterTable = NULL;
@@ -112,7 +117,7 @@ void initialize_diablo() {
 		return;
 	}
 
-	write_log("DBG", "all diablo modules loaded");
+	// write_log("DBG", "all diablo modules loaded");
 
     exp_char_flag = (uint32_t *)((uintptr_t)d2client + 0x119854);
     load_act_1 = (uint32_t *)((uintptr_t)d2client + 0x62AA0);
@@ -130,6 +135,9 @@ void initialize_diablo() {
     first_control = (struct Control **)((uintptr_t)d2win + 0x214A0);
 	client_side_units = (struct UnitHashTable *)((uintptr_t)d2client + 0x109A08);
 	server_side_units = (struct UnitHashTable *)((uintptr_t)d2client + 0x10A608);
+	viewport_x = (uint32_t *)((uintptr_t)d2client + 0x119960);
+	viewport_y = (uint32_t *)((uintptr_t)d2client + 0x11995C);
+	always_run = (boolean *)((uintptr_t)d2client + 0x11C3EC);
 
     /* functions */
     PrintGameString = (PrintGameString_t)((uintptr_t)d2client + 0x7D850);
@@ -170,6 +178,8 @@ void initialize_diablo() {
     SetControlText = (SetControlText_t)((uintptr_t)d2win + 0x14DF0);
     GetUnitName_I = (GetUnitName_I_t)((uintptr_t)d2client + 0xA5D90);
     GetItemName = (GetItemName_t)((uintptr_t)d2client + 0x914F0);
+    SetSelectedUnit_I = (SetSelectedUnit_I_t)((uintptr_t)d2client + 0x51860);
+    ClickMap = (ClickMap_t)((uintptr_t)d2client + 0x1BF20);
 
     /* tables */
     uintptr_t unit_table_base = (uintptr_t)d2client + 0x10A608;
@@ -232,6 +242,15 @@ DWORD __declspec(naked) __fastcall GetUnitName_S(DWORD UnitAny)
 	}
 }
 
+void __declspec(naked) __fastcall SetSelectedUnit_S(DWORD UnitAny)
+{
+	__asm
+	{
+		mov eax, ecx
+		jmp SetSelectedUnit_I
+	}
+}
+
 struct AutomapLayer *init_layer(uint32_t level) {
     struct AutomapLayer2 *layer = GetLayer(level);
 
@@ -244,6 +263,10 @@ struct AutomapLayer *init_layer(uint32_t level) {
 
 wchar_t* get_unit_name(uintptr_t unit) {
 	return (wchar_t*)GetUnitName_S(unit);
+}
+
+void set_selected_unit(struct UnitAny* unit) {
+	SetSelectedUnit_S((uint32_t)unit);
 }
 
 struct Level *get_level(struct Act* pAct, uint32_t level) {
@@ -297,9 +320,9 @@ void reveal_level(struct Level *level) {
 
         reveal_room(room);
 
-        if (roomData) {
-        	RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room->pRoom1);
-        }
+        // if (roomData) {
+        // 	RemoveRoomData(level->pMisc->pAct, level->dwLevelNo, room->dwPosX, room->dwPosY, room->pRoom1);
+        // }
     }
 }
 
